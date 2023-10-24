@@ -1,4 +1,4 @@
-module gitlab.com/phpboyscout/errorhandling
+module github.com/phpboyscout/errorhandling
 
 go 1.20
 
