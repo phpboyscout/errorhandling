@@ -1,0 +1,19 @@
+dir: mocks
+filename: "{{.InterfaceName}}.go"
+force-file-write: true
+formatter: goimports
+include-auto-generated: false
+inpackage: false
+log-level: info
+structname: "{{.Mock}}{{.InterfaceName}}"
+pkgname: mocks
+require-template-schema-exists: true
+template: testify
+template-schema: "{{.Template}}.schema.json"
+packages:
+  gitlab.com/phpboyscout/go/errorhandling:
+    config:
+      all: false
+    interfaces:
+      ErrorHandler:
+      HelpConfig:
