@@ -1,9 +1,5 @@
 package errorhandling
 
-import (
-	"io"
-)
-
 // Option is a functional option for configuring a StandardErrorHandler.
 type Option func(*StandardErrorHandler)
 
@@ -11,12 +7,5 @@ type Option func(*StandardErrorHandler)
 func WithExitFunc(exit ExitFunc) Option {
 	return func(eh *StandardErrorHandler) {
 		eh.Exit = exit
-	}
-}
-
-// WithWriter allows injection of a custom output writer.
-func WithWriter(w io.Writer) Option {
-	return func(eh *StandardErrorHandler) {
-		eh.Writer = w
 	}
 }

@@ -3,7 +3,6 @@ package errorhandling
 import (
 	"context"
 	"fmt"
-	"io"
 	"log/slog"
 	"os"
 	"strings"
@@ -56,23 +55,23 @@ type ErrorHandler interface {
 
 // StandardErrorHandler is the default ErrorHandler implementation.
 // It extracts hints, details, and stack traces from cockroachdb/errors
-// and formats them for terminal or structured output.
+// and formats them for terminal or structured output. All error output is
+// routed through Logger; usage output for ErrRunSubCommand goes through the
+// Usage seam.
 type StandardErrorHandler struct {
 	Logger *slog.Logger
 	Help   HelpConfig
 	Exit   ExitFunc
-	Writer io.Writer
 	Usage  func() error
 }
 
 // New creates an ErrorHandler with the given logger and help config.
-// Options can override the exit function, output writer, or other defaults.
+// Options can override the exit function or other defaults.
 func New(l *slog.Logger, help HelpConfig, opts ...Option) ErrorHandler {
 	h := &StandardErrorHandler{
 		Logger: l,
 		Help:   help,
 		Exit:   os.Exit,
-		Writer: os.Stderr,
 	}
 	for _, opt := range opts {
 		opt(h)
@@ -95,10 +94,26 @@ func (h *StandardErrorHandler) Check(err error, prefix string, level string) {
 	}
 
 	if h.handleSpecialErrors(err) {
+		// The special-error presentation (usage output / warn line) has now been
+		// emitted. A fatal-level report must still terminate the process: usage
+		// and not-yet-implemented errors exit with ExitCodeUsage (2) — the
+		// conventional Unix "command misuse" code, distinct from the generic
+		// failure code (1) — so a script can tell an invalid invocation from an
+		// ordinary runtime failure. Non-fatal levels remain non-exiting.
+		if isFatalLevel(level) {
+			h.Exit(ExitCodeUsage)
+		}
+
 		return
 	}
 
 	h.logError(err, prefix, level)
+}
+
+// isFatalLevel reports whether level terminates the process. Both the loud and
+// quiet fatal levels exit; every other level only logs.
+func isFatalLevel(level string) bool {
+	return level == LevelFatal || level == LevelFatalQuiet
 }
 
 func (h *StandardErrorHandler) handleSpecialErrors(err error) bool {
@@ -190,6 +205,12 @@ func (h *StandardErrorHandler) logError(err error, prefix, level string) {
 	}
 }
 
+// Fatal reports err at the fatal level and terminates the process via the
+// configured exit function. An ordinary error exits with the code attached via
+// WithExitCode (defaulting to 1). A special error — one wrapping ErrRunSubCommand
+// or an unimplemented error — still prints its usage/notice presentation and
+// then exits with ExitCodeUsage (2), so an invalid CLI invocation is not
+// mistaken for success by a calling script. A nil err is a no-op.
 func (h *StandardErrorHandler) Fatal(err error, prefixes ...string) {
 	h.Check(err, handlePrefix(prefixes...), LevelFatal)
 }

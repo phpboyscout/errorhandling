@@ -79,9 +79,9 @@ func run() error {
 ## What's inside
 
 - **Reporting** — `ErrorHandler` (`Check` / `Fatal` / `Error` / `Warn`), `New`, and the
-  `WithExitFunc` / `WithWriter` options.
+  `WithExitFunc` option.
 - **Hints** — `WithUserHint`, `WithUserHintf`, `WrapWithHint`.
-- **Exit codes** — `WithExitCode`, `ExitCode`.
+- **Exit codes** — `WithExitCode`, `ExitCode`, `ExitCodeUsage`.
 - **Levels** — `LevelFatal`, `LevelFatalQuiet`, `LevelError`, `LevelWarn`.
 - **Sentinels** — `ErrNotImplemented` (with `NewErrNotImplemented` for an issue link)
   and `ErrRunSubCommand`, which triggers the usage printer.

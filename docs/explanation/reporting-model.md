@@ -108,6 +108,11 @@ Two error values trigger behaviour rather than just being reported:
   prints usage through the [`SetUsage`](../how-to/print-usage.md) seam and warns. Not
   finding a subcommand is a usage problem, so the answer is to *show the usage*.
 
+Both are presented (usage / notice, at warning level) regardless of the report level.
+Reported at **fatal** level they still terminate the process, but with the conventional
+usage exit code [`2` (`ExitCodeUsage`)](../how-to/exit-codes.md#special-errors-exit-2)
+rather than the generic `1`, so an invalid invocation is not mistaken for success.
+
 ## Assertion failures are different
 
 `NewAssertionFailure` marks an *internal* invariant breach — "this should be

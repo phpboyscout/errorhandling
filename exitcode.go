@@ -4,6 +4,13 @@ import (
 	"github.com/cockroachdb/errors"
 )
 
+// ExitCodeUsage is the process exit code used when a fatal-level report is a
+// usage/special error (a subcommand-required or not-yet-implemented error). It
+// follows the conventional Unix "command misuse" convention (2) — distinct from
+// the generic failure code (1) — so scripts can tell an invalid invocation from
+// an ordinary runtime failure.
+const ExitCodeUsage = 2
+
 // exitCodeError attaches a process exit code to an error without altering its
 // message or identity. It is transparent to errors.Is/As via Unwrap.
 type exitCodeError struct {

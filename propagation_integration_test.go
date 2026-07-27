@@ -159,7 +159,7 @@ func TestSpecialError_ErrRunSubCommandWritesUsage(t *testing.T) {
 
 	var writerBuf bytes.Buffer
 	log := errorhandling.NewCaptureLogger()
-	h := errorhandling.New(log.Logger(), nil, errorhandling.WithWriter(&writerBuf))
+	h := errorhandling.New(log.Logger(), nil)
 
 	// A CLI framework supplies its own usage printer through SetUsage; with
 	// Cobra that is cmd.Usage. The module itself has no framework dependency.

@@ -57,6 +57,23 @@ worth honouring because other software already understands them:
 The `128+signum` convention is what shells, CI runners, and supervisors expect from a
 signalled process; see [handling interrupts](handle-interrupts.md).
 
+## Special errors exit 2
+
+A **special error** — one wrapping `ErrRunSubCommand` (a subcommand is required) or an
+unimplemented error (`NewErrNotImplemented`) — is reported specially: the handler prints
+its usage / notice and **downgrades the log line to a warning**. Reported at fatal level
+it still terminates the process, and it does so with the conventional usage code **`2`**
+(`ExitCodeUsage`), not the generic `1`:
+
+```go
+handler.Fatal(errorhandling.ErrRunSubCommand) // prints usage, exits 2
+```
+
+This lets a calling script tell an *invalid invocation* apart from an ordinary runtime
+failure, and matches what CLI frameworks such as Cobra do in the same situation. Reported
+at a **non-fatal** level (`Error` / `Warn`) the same special errors present their notice
+without exiting.
+
 ## Why not just call os.Exit?
 
 Because `os.Exit` **skips every pending `defer`**. An exit buried in your call tree
