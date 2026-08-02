@@ -88,10 +88,20 @@ func run() error {
 - **Help channels** — the `HelpConfig` interface; you supply the implementation.
 - **`mocks`** — published testify mocks of `ErrorHandler` and `HelpConfig`.
 
+## What it does not do
+
+No signal handling, no panic recovery, no redaction, no crash reporting, no output
+writer of its own — reports go to the `*slog.Logger` you supply. Inside reporting, the
+sentinels discard anything attached to them, `errors.Join` loses hints, and an exit code
+does not survive being encoded across a process boundary. All of it is listed under
+[Limitations](https://errorhandling.go.phpboyscout.uk/reference/limitations/).
+
 ## Documentation
 
 Full guides and the reporting model: **[errorhandling.go.phpboyscout.uk](https://errorhandling.go.phpboyscout.uk)**.
-API reference: **[pkg.go.dev](https://pkg.go.dev/gitlab.com/phpboyscout/go/errorhandling)**.
+Reference — every symbol, level, exit code and log field:
+**[/reference](https://errorhandling.go.phpboyscout.uk/reference/)**.
+Signatures and doc comments: **[pkg.go.dev](https://pkg.go.dev/gitlab.com/phpboyscout/go/errorhandling)**.
 
 ## License
 

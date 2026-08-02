@@ -50,10 +50,31 @@ message.
   implement `HelpConfig`.
 - :material-test-tube: **[Test error handling](how-to/test-error-handling.md)** —
   capture output, inject the exit func, use the mock.
+- :material-book-open-variant: **[Reference](reference/index.md)** — every symbol,
+  level, exit code and log field, and what each does with bad input.
+- :material-block-helper: **[Limitations](reference/limitations.md)** — what the
+  package deliberately does not do.
 
 </div>
 
+## What this package does not do
+
+It reports errors and exits. It does not catch signals, recover panics, redact
+secrets, retry anything, or send a crash report. Reports go to the `*slog.Logger` you
+supply and nowhere else — there is no writer, no colour control and no format control
+of its own.
+
+Within reporting, the sharp edges worth knowing before you commit:
+`ErrRunSubCommand` and the not-implemented sentinels
+[discard almost everything attached to them](reference/limitations.md#special-errors-discard-most-of-the-report),
+an [`errors.Join` loses every hint](reference/limitations.md#hints-are-lost-when-errors-are-joined),
+and an [exit code does not cross a process boundary](reference/limitations.md#exit-codes-do-not-survive-a-process-boundary).
+The full list is on [the limitations page](reference/limitations.md).
+
 ## Reference
 
-The Go API reference is on
+The [reference section](reference/index.md) covers every exported symbol, the exact
+behaviour of each level, how the exit code is resolved, and the fields a report emits.
+
+Signatures and doc comments are also published on
 **[pkg.go.dev](https://pkg.go.dev/gitlab.com/phpboyscout/go/errorhandling)**.

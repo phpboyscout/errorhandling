@@ -15,7 +15,15 @@ nav = [
     { "The reporting model" = "explanation/reporting-model.md" },
     { "Why cockroachdb/errors" = "explanation/why-cockroachdb-errors.md" },
   ] },
-  { "Reference (pkg.go.dev)" = "https://pkg.go.dev/gitlab.com/phpboyscout/go/errorhandling" },
+  { Reference = [
+    { Overview = "reference/index.md" },
+    { "API reference" = "reference/api.md" },
+    { "Report levels" = "reference/levels.md" },
+    { "Exit codes" = "reference/exit-codes.md" },
+    { "Log fields" = "reference/log-fields.md" },
+    { Limitations = "reference/limitations.md" },
+  ] },
+  { "Go API (pkg.go.dev)" = "https://pkg.go.dev/gitlab.com/phpboyscout/go/errorhandling" },
 ]
 
 [project]
