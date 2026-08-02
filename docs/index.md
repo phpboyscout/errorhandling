@@ -38,8 +38,8 @@ message.
 
 <div class="grid cards" markdown>
 
-- :material-rocket-launch: **[Getting started](getting-started.md)** — report your
-  first error with a hint and an exit code.
+- :material-rocket-launch: **[Getting started](tutorials/getting-started.md)** — report
+  your first error with a hint and an exit code.
 - :material-lightbulb-on-outline: **[Write actionable errors](how-to/actionable-errors.md)**
   — what separates a good error from a bad one.
 - :material-exit-run: **[Control the exit code](how-to/exit-codes.md)** — attach a code

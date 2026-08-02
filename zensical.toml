@@ -2,7 +2,7 @@
 # explanation → reference).
 nav = [
   { Home = "index.md" },
-  { Tutorial = [ { "Getting started" = "getting-started.md" } ] },
+  { Tutorials = [ { "Getting started" = "tutorials/getting-started.md" } ] },
   { "How-to guides" = [
     { "Write actionable errors" = "how-to/actionable-errors.md" },
     { "Control the exit code" = "how-to/exit-codes.md" },

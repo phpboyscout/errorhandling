@@ -1,0 +1,15 @@
+# Redirects for pages that have moved, served by GitLab Pages.
+#
+# Zensical has no redirects plugin — it implements search, offline, mike and
+# mkdocstrings only. Anything that is not a page is copied verbatim from docs/ to
+# the site root, which is how this file reaches GitLab Pages, which reads
+# `_redirects` from the published root.
+#
+# Format: <from> <to> <status>
+#
+# The tutorial moved out of the docs root into the tutorials/ quadrant when the
+# Diátaxis layout was completed. Both the trailing-slash and bare forms are listed
+# because inbound links use both.
+
+/getting-started/ /tutorials/getting-started/ 301
+/getting-started  /tutorials/getting-started/ 301
