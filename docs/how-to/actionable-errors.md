@@ -123,10 +123,17 @@ if len(items) == 0 {
 
 Assertion failures are reported as `Internal error (assertion failure)` — the message
 convention is to name the function, state the violated precondition, and say it's a
-bug. No hint is appropriate: nobody outside your team can act on it.
+bug. Don't add a hint of your own: nobody outside your team can act on it.
+
+You will still see a `hints` field on the report. `cockroachdb/errors` attaches its own
+generic text to every assertion failure ("You have encountered an unexpected error…
+please check the public issue tracker…"), and it is not configurable from here. That is
+the reason not to add a second hint — the user gets one already, and two competing
+pieces of advice are worse than one generic one.
 
 ## Related
 
 - [The reporting model](../explanation/reporting-model.md)
 - [Why cockroachdb/errors](../explanation/why-cockroachdb-errors.md)
 - [Control the exit code](exit-codes.md)
+- [Log fields](../reference/log-fields.md) — which of these carriers renders where

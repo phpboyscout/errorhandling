@@ -71,7 +71,23 @@ handler := errorhandling.New(logger, configuredHelp{
 ```
 
 Keep it cheap: `SupportMessage` is called on **every** reported error, so it should not
-do I/O. Resolve the value once at startup and hold it.
+do I/O. Resolve the value once at startup and hold it. It is called on the reporting
+goroutine with no context and no cancellation, so it must not block and must be safe to
+call concurrently.
+
+## Which reports do not get the help message
+
+Not every report carries it. The message is attached on the ordinary path only, so it
+is absent from:
+
+- a **subcommand-required** warning, printed alongside usage
+- a **not-yet-implemented** notice
+- the first line of an [assertion failure](../reference/levels.md#what-an-assertion-failure-does),
+  though the ordinary line that follows does carry it
+
+The message also cannot vary by error — one `HelpConfig` serves the whole handler, and
+`SupportMessage()` is called with no argument. If different failures need different
+channels, put the routing in a [hint](actionable-errors.md) instead.
 
 ## Why the module ships no implementations
 
@@ -84,3 +100,4 @@ is yours, exactly as it should be.
 
 - [The reporting model](../explanation/reporting-model.md#what-gets-rendered-and-when)
 - [Test error handling](test-error-handling.md)
+- [API reference: HelpConfig](../reference/api.md#helpconfig)

@@ -74,6 +74,12 @@ failure, and matches what CLI frameworks such as Cobra do in the same situation.
 at a **non-fatal** level (`Error` / `Warn`) the same special errors present their notice
 without exiting.
 
+`2` wins over anything you attached. `Fatal(WithExitCode(ErrRunSubCommand, 64))` exits
+`2`, not `64` — the handler takes the usage path before it ever looks at the error's
+code. There is no way to override that; if a usage failure needs its own exit code,
+report it as an ordinary error instead of wrapping the sentinel. The full resolution
+order is in [the exit codes reference](../reference/exit-codes.md#how-the-exit-code-is-resolved).
+
 ## Why not just call os.Exit?
 
 Because `os.Exit` **skips every pending `defer`**. An exit buried in your call tree
@@ -121,8 +127,19 @@ h.Fatal(errorhandling.WithExitCode(errors.New("boom"), 3))
 assert.Equal(t, 3, code)
 ```
 
+## What is not supported
+
+- **Choosing the code for a special error.** It is always `2` — see above.
+- **Mapping a level to a code.** `LevelFatal` and `LevelFatalQuiet` exit with the same
+  code for the same error.
+- **Carrying a code across a process boundary.** The wrapper does not survive
+  `errors.EncodeError`/`DecodeError`, or anything that rebuilds an error from its
+  message string; the code comes back as `1`.
+- **Range checking.** `WithExitCode(err, 300)` is accepted and the shell sees `44`.
+
 ## Related
 
 - [Handle interrupts quietly](handle-interrupts.md)
 - [The reporting model](../explanation/reporting-model.md#the-exit-code-belongs-to-the-error)
 - [Test error handling](test-error-handling.md)
+- [Exit codes reference](../reference/exit-codes.md)

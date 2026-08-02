@@ -60,7 +60,26 @@ handler.SetUsage(func() error {
 the error is considered dealt with; there is simply no usage output. That makes the
 seam optional: a tool with no usage concept can ignore it entirely.
 
+## When the usage printer itself fails
+
+The error your function returns is **discarded**. Nothing is logged about it and the
+"Subcommand required" warning is emitted either way, so a printer that fails silently
+produces a report with no usage above it. If that matters — a printer writing to a pipe
+that has closed, say — handle the error inside the closure.
+
+## Why decorating ErrRunSubCommand does nothing
+
+Anything you attach to the sentinel is dropped: a hint, a prefix, an exit code, even a
+wrapping message. `errors.Wrap(ErrRunSubCommand, "config")` reports exactly the same
+line as the bare sentinel, and `Fatal` still exits `2` however you coded it.
+
+The handler recognises the condition with `errors.Is` and then prints its own fixed
+presentation rather than reporting your error, so there is nowhere for the extra
+information to appear. Put anything a user needs to read into the usage output itself.
+See [Limitations](../reference/limitations.md#special-errors-discard-most-of-the-report).
+
 ## Related
 
 - [The reporting model](../explanation/reporting-model.md#sentinels-that-mean-something)
 - [Write actionable errors](actionable-errors.md)
+- [API reference: SetUsage](../reference/api.md#setusage)

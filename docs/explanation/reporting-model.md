@@ -70,8 +70,14 @@ A report is assembled from the error itself:
 - **Stack traces and details** — only when the logger has **debug enabled**. This is
   decided by asking the logger (`Enabled(ctx, slog.LevelDebug)`), not by reading a
   level off a config, so whatever your slog handler considers debug is what counts.
+  ([Assertion failures are the exception](#assertion-failures-are-different).)
 - **A support message** — when a [`HelpConfig`](../how-to/support-channel.md) is
   supplied and returns a non-empty string.
+
+That list describes the *normal* path. Special errors take a different one and render
+almost none of it — see [Sentinels that mean something](#sentinels-that-mean-something)
+below. The complete field-by-field account is in
+[the log fields reference](../reference/log-fields.md).
 
 The prefix argument is **not** prepended to the message. It is attached as a structured
 `prefix` attribute, so it appears as `prefix=cache-update` alongside the message rather
@@ -113,6 +119,21 @@ Reported at **fatal** level they still terminate the process, but with the conve
 usage exit code [`2` (`ExitCodeUsage`)](../how-to/exit-codes.md#special-errors-exit-2)
 rather than the generic `1`, so an invalid invocation is not mistaken for success.
 
+### Why a special error renders so little
+
+The presentation for these two is *fixed*: a known message at warning level, and for an
+unimplemented command the tracking link. Everything the error itself was carrying —
+prefix, hints, details, stack trace, help message, and the wrapped message — is
+discarded, and an exit code attached with `WithExitCode` is overridden by `2`.
+
+That is a consequence of treating them as *conditions* rather than failures. The
+handler is not reporting an error here; it is answering a question the user asked
+badly, and the answer is the usage text or the "not yet" notice, not a diagnostic. It
+does mean you cannot decorate one of these sentinels and expect the decoration to
+appear — if a usage failure needs context, the context belongs in the usage output. The
+full list of what is dropped is in
+[Limitations](../reference/limitations.md#special-errors-discard-most-of-the-report).
+
 ## Assertion failures are different
 
 `NewAssertionFailure` marks an *internal* invariant breach — "this should be
@@ -123,7 +144,20 @@ can act on a violated invariant.
 
 Note that an assertion failure still falls through to normal reporting afterwards,
 rather than short-circuiting — the failure is surfaced *and* logged through the usual
-path.
+path. So one assertion failure produces two records: the `Internal error (assertion
+failure)` line, then the ordinary report for whatever level you asked for.
+
+That first line is emitted at **error level whatever level you requested**, and it
+carries the error *value* rather than its message. This is the one place the
+debug-gating rule above does not hold: how much of the stack that value renders is
+decided by your slog handler, and the standard `TextHandler` prints all of it. If you
+need assertion failures to stay to one line at error level, use a handler that renders
+error values by message — `JSONHandler` does. The mechanics are set out in
+[what an assertion failure does](../reference/levels.md#what-an-assertion-failure-does).
+
+The reasoning for reporting loudly regardless: an assertion failure means the program's
+own invariant is broken, and at that point the caller's judgement about severity is no
+longer trustworthy. Downgrading it on request would let a bug hide behind a `Warn`.
 
 ## Why an interface
 
@@ -138,3 +172,5 @@ to construct it directly.
 - [Why cockroachdb/errors](why-cockroachdb-errors.md)
 - [Write actionable errors](../how-to/actionable-errors.md)
 - [Control the exit code](../how-to/exit-codes.md)
+- [Report levels](../reference/levels.md) — the same model as a lookup table
+- [Limitations](../reference/limitations.md) — where the model stops
