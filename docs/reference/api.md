@@ -182,8 +182,10 @@ is what lets the module stay free of any CLI-framework dependency; with Cobra, p
 
 Each of these is a thin wrapper over `cockroachdb/errors`. They exist for
 discoverability and a consistent house style, not encapsulation — calling the
-underlying function directly is equally correct. Every one of them **returns nil when
-given nil**, so they are safe to apply unconditionally in a return statement.
+underlying function directly is equally correct. The three that take an existing error —
+`WithUserHint`, `WithUserHintf` and `WrapWithHint` — **return nil when given nil**, so
+they are safe to apply unconditionally in a return statement. `NewAssertionFailure`
+takes no error; it constructs a new one.
 
 ### WithUserHint
 
