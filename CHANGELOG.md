@@ -1,5 +1,13 @@
 # Changelog
 
+## [v0.2.0](https://gitlab.com/phpboyscout/go/errorhandling/-/releases/v0.2.0)
+
+[Compare to previous version](https://gitlab.com/phpboyscout/go/errorhandling/-/compare/v0.1.1...v0.2.0)
+
+### Features
+
+- the handler after cockroachdb ([7c46963](https://gitlab.com/phpboyscout/go/errorhandling/-/commit/7c46963443b3e3d3c05bc3c7a29245fe7401b06e))
+
 ## [v0.1.1](https://gitlab.com/phpboyscout/go/errorhandling/-/releases/v0.1.1)
 
 [Compare to previous version](https://gitlab.com/phpboyscout/go/errorhandling/-/compare/v0.1.0...v0.1.1)
