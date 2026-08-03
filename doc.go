@@ -1,21 +1,21 @@
-// Package errorhandling provides structured, user-friendly error reporting for
-// command-line tools.
+// Package errorhandling reports an error once, with everything it carries, and
+// tells the caller what exit code to use.
 //
-// The [ErrorHandler] interface offers Check (route an error through the
-// reporting pipeline), Fatal (report and exit), Error (non-terminating report),
-// and Warn. Errors are rendered with any user-facing hints attached via
-// cockroachdb/errors (WithHint/WithHintf, or the [WithUserHint] helpers here),
-// plus an optional support-channel message supplied through [HelpConfig].
+// It builds on gitlab.com/phpboyscout/go/errors: hints, structured attributes,
+// stacks and a stable kind travel on the error itself and reach a log record
+// through slog.LogValuer. This module adds only what the PROCESS knows and the
+// error cannot — the support message from [HelpConfig], and the caller's prefix.
 //
-// An exit code can be attached to an error value with [WithExitCode] and is
-// honoured when the error is reported at Fatal level, so the code that knows
-// *why* something failed decides how the process exits.
+// # Nothing here exits
 //
-// Stack traces and error details are extracted from cockroachdb/errors and
-// emitted only when the logger has debug enabled, giving rich diagnostics on
-// demand without cluttering normal output.
+// [ErrorHandler.Fatal] returns an exit code; main decides. A library calling
+// os.Exit skips every deferred cleanup between itself and main.
 //
-// The package carries no CLI-framework dependency. Where a parent command needs
-// to print usage (an error wrapping [ErrRunSubCommand]), the caller supplies the
-// printer through SetUsage — with Cobra, that is cmd.Usage.
+// # A terminal error carries its own disposition
+//
+// [Outcome] says how an error ends — its exit code, how loudly to report it,
+// whether to print usage — declared beside the sentinel it describes. Zero is a
+// legitimate code: an outcome can be terminal and successful.
+//
+// See spec 0002 on this project's wiki for the decisions and what was rejected.
 package errorhandling

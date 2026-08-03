@@ -1,7 +1,7 @@
 package errorhandling
 
 import (
-	"github.com/cockroachdb/errors"
+	"gitlab.com/phpboyscout/go/errors"
 )
 
 // ExitCodeUsage is the process exit code used when a fatal-level report is a
@@ -21,6 +21,16 @@ type exitCodeError struct {
 func (e *exitCodeError) Error() string { return e.cause.Error() }
 
 func (e *exitCodeError) Unwrap() error { return e.cause }
+
+// ExitCodeKind identifies an attached exit code to anything reading the error
+// through the introspection contract.
+const ExitCodeKind = "errorhandling.exit_code"
+
+func (e *exitCodeError) ErrorKind() string { return ExitCodeKind }
+
+// ErrorPayload exposes the code, so it reaches a log record and a span rather
+// than being readable only by this module's own errors.As.
+func (e *exitCodeError) ErrorPayload() any { return e.code }
 
 // WithExitCode attaches a process exit code to err. The ErrorHandler's fatal
 // path uses the attached code instead of the default 1, letting callers thread

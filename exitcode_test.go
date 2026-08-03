@@ -1,12 +1,13 @@
 package errorhandling_test
 
 import (
+	"context"
 	"log/slog"
 	"testing"
 
-	"github.com/cockroachdb/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gitlab.com/phpboyscout/go/errors"
 
 	"gitlab.com/phpboyscout/go/errorhandling"
 )
@@ -103,33 +104,30 @@ func TestCheck_FatalUsesAttachedExitCode(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			exitCode := -1
-			h := errorhandling.New(slog.New(slog.DiscardHandler), nil,
-				errorhandling.WithExitFunc(func(code int) { exitCode = code }))
+			h := errorhandling.New(slog.New(slog.DiscardHandler), nil)
 
-			h.Check(tt.err, "", errorhandling.LevelFatal)
-
-			assert.Equal(t, tt.want, exitCode)
+			// No injected exit function: Fatal returns the code, so the test
+			// asserts on a value rather than capturing a fake os.Exit.
+			assert.Equal(t, tt.want, h.Fatal(context.Background(), tt.err))
 		})
 	}
 }
 
-// TestCheck_FatalQuietLogsDebugButStillExits proves the LevelFatalQuiet path
-// honours the attached exit code (128+signum) exactly like LevelFatal, while
-// demoting the notice from error to debug — an interrupt is a user choice, not
-// a failure. The message is still emitted (at debug) so `--debug` surfaces it.
-func TestCheck_FatalQuietLogsDebugButStillExits(t *testing.T) {
+// TestQuietlyHonoursTheCodeWhileDemotingTheLine proves Quietly is a demotion
+// and not a level: the attached exit code (128+signum) is returned exactly as a
+// loud fatal would, while the notice drops from error to debug — an interrupt
+// is a user choice, not a failure. The message is still emitted (at debug) so
+// `--debug` surfaces it.
+func TestQuietlyHonoursTheCodeWhileDemotingTheLine(t *testing.T) {
 	t.Parallel()
 
 	buf := errorhandling.NewCaptureLogger()
-	exitCode := -1
-	h := errorhandling.New(buf.Logger(), nil,
-		errorhandling.WithExitFunc(func(code int) { exitCode = code }))
+	h := errorhandling.New(buf.Logger(), nil)
 
 	err := errorhandling.WithExitCode(errors.New("interrupted by signal: interrupt"), 130)
-	h.Check(err, "", errorhandling.LevelFatalQuiet)
+	code := h.Fatal(context.Background(), err, errorhandling.Quietly())
 
-	assert.Equal(t, 130, exitCode, "LevelFatalQuiet must still exit with the attached code")
+	assert.Equal(t, 130, code, "Quietly must not change the exit code")
 
 	entries := buf.Entries()
 	require.Len(t, entries, 1, "the interrupt notice must be emitted exactly once")
@@ -139,6 +137,6 @@ func TestCheck_FatalQuietLogsDebugButStillExits(t *testing.T) {
 
 	for _, e := range entries {
 		assert.NotEqual(t, slog.LevelError, e.Level,
-			"LevelFatalQuiet must never log at error")
+			"Quietly must never log at error")
 	}
 }

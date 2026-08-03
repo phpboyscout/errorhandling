@@ -56,7 +56,10 @@ func (c *CaptureLogger) Entries() []Entry {
 		e := Entry{Level: r.Level, Message: r.Message}
 
 		r.Attrs(func(a slog.Attr) bool {
-			e.Keyvals = append(e.Keyvals, a.Key, a.Value.Any())
+			// Resolve, so a slog.LogValuer — which is how an error now arrives
+			// — is flattened to the group it represents rather than captured
+			// as the unresolved value.
+			e.Keyvals = append(e.Keyvals, a.Key, a.Value.Resolve().Any())
 
 			return true
 		})
@@ -117,3 +120,32 @@ func (h *captureHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
 }
 
 func (h *captureHandler) WithGroup(string) slog.Handler { return h }
+
+// ErrGroup returns the attributes of the "err" group in the first captured
+// record that has one. An error reaches a record as a group via
+// slog.LogValuer, so this is how a test reads what the ERROR carried as
+// distinct from what the handler added.
+func (c *CaptureLogger) ErrGroup() (map[string]any, bool) {
+	for _, e := range c.Entries() {
+		for i := 0; i+1 < len(e.Keyvals); i += 2 {
+			key, _ := e.Keyvals[i].(string)
+			if key != KeyError {
+				continue
+			}
+
+			attrs, ok := e.Keyvals[i+1].([]slog.Attr)
+			if !ok {
+				return nil, false
+			}
+
+			out := make(map[string]any, len(attrs))
+			for _, a := range attrs {
+				out[a.Key] = a.Value.Resolve().Any()
+			}
+
+			return out, true
+		}
+	}
+
+	return nil, false
+}

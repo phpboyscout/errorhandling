@@ -1,284 +1,209 @@
 package errorhandling
 
 import (
-	"bytes"
-	"errors"
+	"context"
 	"log/slog"
-	"os"
 	"testing"
 
-	cberrors "github.com/cockroachdb/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"gitlab.com/phpboyscout/go/errors"
 )
 
-func TestErrorHandler_Check(t *testing.T) {
-	t.Run("Error_logs_message_with_prefix", func(t *testing.T) {
-		log := NewCaptureLogger()
-		h := &StandardErrorHandler{Logger: log.Logger(), Exit: os.Exit}
-		h.Error(errors.New("simple error"), "Prefix: ")
-		entries := log.Entries()
-		require.NotEmpty(t, entries)
-		assert.Contains(t, entries[0].Message, "simple error")
-		// The prefix is now carried as a structured attribute rather than
-		// prepended to the message (slog-first migration).
-		assert.Contains(t, entries[0].Keyvals, "prefix")
-		assert.Contains(t, entries[0].Keyvals, "Prefix: ")
-	})
+func newTestHandler(t *testing.T) (*StandardErrorHandler, *CaptureLogger) {
+	t.Helper()
 
-	t.Run("Warn_logs_warning", func(t *testing.T) {
-		log := NewCaptureLogger()
-		h := &StandardErrorHandler{Logger: log.Logger(), Exit: os.Exit}
-		h.Warn(errors.New("simple warning"), "Prefix: ")
-		entries := log.Entries()
-		require.NotEmpty(t, entries)
-		assert.Contains(t, entries[0].Message, "simple warning")
-	})
+	cap := NewCaptureLogger()
 
-	t.Run("Unknown_level_falls_back_to_error", func(t *testing.T) {
-		log := NewCaptureLogger()
-		h := &StandardErrorHandler{Logger: log.Logger(), Exit: os.Exit}
-		h.Check(errors.New("boom"), "", "totally-unknown-level")
-		entries := log.Entries()
-		require.NotEmpty(t, entries, "unknown level must not silently swallow the error")
-		assert.Equal(t, slog.LevelError, entries[0].Level)
-		assert.Contains(t, entries[0].Message, "boom")
-	})
-
-	t.Run("ErrNotImplemented_downgrades_to_warn", func(t *testing.T) {
-		log := NewCaptureLogger()
-		h := &StandardErrorHandler{Logger: log.Logger(), Exit: os.Exit}
-		h.Check(ErrNotImplemented, "", LevelError)
-		entries := log.Entries()
-		require.NotEmpty(t, entries)
-		assert.Equal(t, slog.LevelWarn, entries[0].Level)
-		assert.Contains(t, entries[0].Message, "Command not yet implemented")
-	})
-
-	t.Run("ErrRunSubCommand_with_usage_property", func(t *testing.T) {
-		var writerBuf bytes.Buffer
-		log := NewCaptureLogger()
-		h := &StandardErrorHandler{Logger: log.Logger(), Exit: os.Exit}
-		// The usage seam is a plain func — no CLI framework involved. A real
-		// Cobra caller supplies cmd.Usage here.
-		h.SetUsage(func() error {
-			_, err := writerBuf.WriteString("Usage:\n  testcmd [command]\n")
-
-			return err
-		})
-		h.Check(ErrRunSubCommand, "", LevelError)
-		entries := log.Entries()
-		require.NotEmpty(t, entries)
-		assert.Equal(t, slog.LevelWarn, entries[0].Level)
-		assert.Contains(t, entries[0].Message, "Subcommand required")
-		assert.Contains(t, writerBuf.String(), "Usage:")
-	})
-
-	t.Run("ErrRunSubCommand_via_Error_wrapper", func(t *testing.T) {
-		var writerBuf bytes.Buffer
-		log := NewCaptureLogger()
-		h := &StandardErrorHandler{Logger: log.Logger(), Exit: os.Exit}
-		// The usage seam is a plain func — no CLI framework involved. A real
-		// Cobra caller supplies cmd.Usage here.
-		h.SetUsage(func() error {
-			_, err := writerBuf.WriteString("Usage:\n  testcmd [command]\n")
-
-			return err
-		})
-		h.Error(ErrRunSubCommand)
-		entries := log.Entries()
-		require.NotEmpty(t, entries)
-		assert.Equal(t, slog.LevelWarn, entries[0].Level)
-		assert.Contains(t, entries[0].Message, "Subcommand required")
-		assert.Contains(t, writerBuf.String(), "Usage:")
-	})
+	return &StandardErrorHandler{Logger: cap.Logger()}, cap
 }
 
-func TestNewErrNotImplemented(t *testing.T) {
+// --- D8: Fatal reports and returns; it does not exit ------------------------
+
+func TestFatalReturnsTheExitCodeAndDoesNotExit(t *testing.T) {
 	t.Parallel()
-	err := NewErrNotImplemented("https://github.com/org/repo/issues/1")
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "not yet implemented")
-	links := cberrors.GetAllIssueLinks(err)
-	require.Len(t, links, 1)
-	assert.Equal(t, "https://github.com/org/repo/issues/1", links[0].IssueURL)
+
+	h, cap := newTestHandler(t)
+
+	code := h.Fatal(context.Background(), WithExitCode(errors.New("boom"), 7))
+
+	assert.Equal(t, 7, code, "Fatal must return the code, not act on it")
+	require.Len(t, cap.Entries(), 1)
+	assert.Equal(t, slog.LevelError, cap.Entries()[0].Level)
 }
 
-func TestHandleSpecialErrors_UnimplementedWithIssueLink(t *testing.T) {
+func TestFatalOfNilReportsNothing(t *testing.T) {
 	t.Parallel()
-	log := NewCaptureLogger()
-	h := &StandardErrorHandler{Logger: log.Logger(), Exit: os.Exit}
 
-	err := NewErrNotImplemented("https://example.com/issue/99")
-	handled := h.handleSpecialErrors(err)
-	assert.True(t, handled)
-	entries := log.Entries()
+	h, cap := newTestHandler(t)
+
+	assert.Equal(t, 0, h.Fatal(context.Background(), nil))
+	assert.Empty(t, cap.Entries())
+}
+
+func TestErrorAndWarnReportAtTheirLevel(t *testing.T) {
+	t.Parallel()
+
+	h, cap := newTestHandler(t)
+
+	h.Error(context.Background(), errors.New("an error"))
+	h.Warn(context.Background(), errors.New("a warning"))
+
+	entries := cap.Entries()
 	require.Len(t, entries, 2)
-	assert.Contains(t, entries[0].Message, "not yet implemented")
-	assert.Contains(t, entries[1].Keyvals, "https://example.com/issue/99")
+	assert.Equal(t, slog.LevelError, entries[0].Level)
+	assert.Equal(t, slog.LevelWarn, entries[1].Level)
 }
 
-func TestHandleSpecialErrors_AssertionFailure(t *testing.T) {
+// --- D3: Quietly is a demotion, not a level ---------------------------------
+
+func TestQuietlyDemotesTheLineButNotTheCode(t *testing.T) {
 	t.Parallel()
-	log := NewCaptureLogger()
-	h := &StandardErrorHandler{Logger: log.Logger(), Exit: os.Exit}
 
-	err := NewAssertionFailure("invariant violated: %s", "x must be positive")
-	handled := h.handleSpecialErrors(err)
-	assert.False(t, handled) // assertion failures fall through to logError
-	entries := log.Entries()
-	require.NotEmpty(t, entries)
-	assert.Contains(t, entries[0].Message, "Internal error")
+	h, cap := newTestHandler(t)
+	err := WithExitCode(errors.New("interrupted"), 130)
+
+	code := h.Fatal(context.Background(), err, Quietly())
+
+	assert.Equal(t, 130, code, "quiet must not change the exit code")
+	require.Len(t, cap.Entries(), 1)
+	assert.Equal(t, slog.LevelDebug, cap.Entries()[0].Level)
 }
 
-func TestHandleSpecialErrors_ErrRunSubCommand_NilCmd(t *testing.T) {
+func TestWithPrefixLabelsTheReport(t *testing.T) {
 	t.Parallel()
-	var buf bytes.Buffer
-	h := &StandardErrorHandler{Logger: slog.New(slog.NewTextHandler(&buf, nil)), Exit: os.Exit}
 
-	// No Usage set — still returns true (nothing to print, but handled)
-	handled := h.handleSpecialErrors(ErrRunSubCommand)
-	assert.True(t, handled)
+	h, cap := newTestHandler(t)
+
+	h.Error(context.Background(), errors.New("boom"), WithPrefix("startup"))
+
+	require.Len(t, cap.Entries(), 1)
+	assert.Contains(t, cap.Entries()[0].Keyvals, KeyPrefix)
+	assert.Contains(t, cap.Entries()[0].Keyvals, "startup")
 }
 
-func TestWithUserHint(t *testing.T) {
+// --- D4: the error is handed to slog, not taken apart -----------------------
+
+func TestTheErrorArrivesAsAStructuredGroup(t *testing.T) {
 	t.Parallel()
-	base := cberrors.New("base error")
-	hinted := WithUserHint(base, "try restarting")
-	assert.Contains(t, cberrors.FlattenHints(hinted), "try restarting")
+
+	h, cap := newTestHandler(t)
+
+	err := errors.WithAttrs(
+		errors.WithHint(errors.New("could not resolve"), "check the token"),
+		slog.String("host", "codeberg.org"),
+	)
+
+	h.Error(context.Background(), err)
+
+	group, ok := cap.ErrGroup()
+	require.True(t, ok, "the error must arrive as a group, not a flattened string")
+	assert.Equal(t, "could not resolve", group["msg"])
+	assert.Equal(t, "codeberg.org", group["host"], "attributes travel on the error")
+	assert.NotEmpty(t, group["hint"], "hints travel on the error")
+	assert.NotEmpty(t, group["kind"], "the kind identifies the error")
 }
 
-func TestWithUserHintf(t *testing.T) {
+func TestTheStackIsNotInTheGroupAndIsReachable(t *testing.T) {
 	t.Parallel()
-	base := cberrors.New("base error")
-	hinted := WithUserHintf(base, "try %s", "again")
-	assert.Contains(t, cberrors.FlattenHints(hinted), "try again")
+
+	h, cap := newTestHandler(t)
+	err := errors.New("boom")
+
+	h.Error(context.Background(), err)
+
+	group, ok := cap.ErrGroup()
+	require.True(t, ok)
+	assert.NotContains(t, group, "stack", "LogValue omits the stack deliberately")
+	assert.NotNil(t, errors.StackOf(err), "and it stays reachable through StackOf")
 }
 
-func TestWrapWithHint(t *testing.T) {
+func TestTheStackIsAddedAtDebug(t *testing.T) {
 	t.Parallel()
-	base := cberrors.New("root cause")
-	wrapped := WrapWithHint(base, "operation failed", "check your config")
-	assert.Contains(t, wrapped.Error(), "operation failed")
-	assert.Contains(t, cberrors.FlattenHints(wrapped), "check your config")
+
+	h, cap := newTestHandler(t)
+	cap.SetLevel(slog.LevelDebug)
+
+	h.Error(context.Background(), errors.New("boom"))
+
+	require.Len(t, cap.Entries(), 1)
+	assert.Contains(t, cap.Entries()[0].Keyvals, KeyStacktrace)
 }
 
-func TestNewAssertionFailure(t *testing.T) {
+func TestHelpIsAddedWhenConfigured(t *testing.T) {
 	t.Parallel()
-	err := NewAssertionFailure("unexpected state: %d", 42)
-	require.Error(t, err)
-	assert.True(t, cberrors.HasAssertionFailure(err))
-	assert.Contains(t, err.Error(), "unexpected state: 42")
+
+	cap := NewCaptureLogger()
+	h := &StandardErrorHandler{Logger: cap.Logger(), Help: staticHelp("ask #support")}
+
+	h.Error(context.Background(), errors.New("boom"))
+
+	require.Len(t, cap.Entries(), 1)
+	assert.Contains(t, cap.Entries()[0].Keyvals, KeyHelp)
+	assert.Contains(t, cap.Entries()[0].Keyvals, "ask #support")
 }
 
-func TestErrorHandler_Fatal(t *testing.T) {
-	log := NewCaptureLogger()
+type staticHelp string
 
-	exitCalled := false
-	exitCode := 0
-	mockExit := func(code int) {
-		exitCalled = true
-		exitCode = code
-	}
+func (s staticHelp) SupportMessage() string { return string(s) }
 
-	h := &StandardErrorHandler{
-		Logger: log.Logger(),
-		Exit:   mockExit,
-	}
+// --- D5: an assertion failure is one record, identified by its kind ---------
 
-	err := errors.New("fatal error")
-	h.Fatal(err, "FATAL: ")
+func TestAssertionFailureIsReportedOnceWithItsKind(t *testing.T) {
+	t.Parallel()
 
-	assert.True(t, exitCalled)
-	assert.Equal(t, 1, exitCode)
-	entries := log.Entries()
-	require.NotEmpty(t, entries)
-	assert.Contains(t, entries[0].Message, "fatal error")
+	h, cap := newTestHandler(t)
+
+	err := NewAssertionFailure("invariant broken: %s", "x < 0")
+
+	h.Error(context.Background(), err)
+
+	require.Len(t, cap.Entries(), 1, "one record — the second line was the old way of saying this")
+	assert.True(t, errors.Is(err, ErrAssertionFailure))
+
+	group, ok := cap.ErrGroup()
+	require.True(t, ok)
+	assert.Equal(t, "errorhandling.assertion_failure", group["kind"],
+		"the kind is what a query filters on")
 }
 
-// TestErrorHandler_Fatal_SpecialErrors proves that a fatal-level special error
-// (subcommand-required / not-implemented) both terminates the process with the
-// usage exit code (2) and still emits its special-error presentation. It also
-// asserts that reporting the same special errors at a non-fatal level does not
-// exit. On unmodified main this fails: Check returns early inside
-// handleSpecialErrors, so h.Exit is never reached for a fatal special error.
-func TestErrorHandler_Fatal_SpecialErrors(t *testing.T) {
-	tests := []struct {
-		name         string
-		newErr       func(buf *bytes.Buffer) error
-		level        string
-		wantExit     bool
-		wantCode     int
-		wantMsgFrag  string
-		wantMsgLevel slog.Level
-	}{
-		{
-			name:         "fatal_ErrRunSubCommand_exits_2_and_prints_usage",
-			newErr:       func(*bytes.Buffer) error { return ErrRunSubCommand },
-			level:        LevelFatal,
-			wantExit:     true,
-			wantCode:     ExitCodeUsage,
-			wantMsgFrag:  "Subcommand required",
-			wantMsgLevel: slog.LevelWarn,
-		},
-		{
-			name:         "fatal_ErrNotImplemented_exits_2_and_reports",
-			newErr:       func(*bytes.Buffer) error { return NewErrNotImplemented("https://example.com/issue/1") },
-			level:        LevelFatal,
-			wantExit:     true,
-			wantCode:     ExitCodeUsage,
-			wantMsgFrag:  "not yet implemented",
-			wantMsgLevel: slog.LevelWarn,
-		},
-		{
-			name:         "error_ErrRunSubCommand_does_not_exit",
-			newErr:       func(*bytes.Buffer) error { return ErrRunSubCommand },
-			level:        LevelError,
-			wantExit:     false,
-			wantMsgFrag:  "Subcommand required",
-			wantMsgLevel: slog.LevelWarn,
-		},
-		{
-			name:         "warn_ErrNotImplemented_does_not_exit",
-			newErr:       func(*bytes.Buffer) error { return NewErrNotImplemented("https://example.com/issue/2") },
-			level:        LevelWarn,
-			wantExit:     false,
-			wantMsgFrag:  "not yet implemented",
-			wantMsgLevel: slog.LevelWarn,
-		},
-	}
+// --- D1: the sentinels ------------------------------------------------------
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			log := NewCaptureLogger()
+func TestNewErrNotImplementedCarriesTheIssueURL(t *testing.T) {
+	t.Parallel()
 
-			exitCalled := false
-			exitCode := -1
-			mockExit := func(code int) {
-				exitCalled = true
-				exitCode = code
-			}
+	err := NewErrNotImplemented("https://example.invalid/issues/1")
 
-			var usageBuf bytes.Buffer
-			h := &StandardErrorHandler{Logger: log.Logger(), Exit: mockExit}
-			h.SetUsage(func() error {
-				_, err := usageBuf.WriteString("Usage:\n  testcmd [command]\n")
+	require.True(t, errors.Is(err, ErrNotImplemented))
 
-				return err
-			})
+	attrs := errors.Attrs(err)
+	require.Len(t, attrs, 1)
+	assert.Equal(t, "issue_url", attrs[0].Key)
+	assert.Equal(t, "https://example.invalid/issues/1", attrs[0].Value.String())
+}
 
-			h.Check(tc.newErr(&usageBuf), "", tc.level)
+func TestNewErrNotImplementedWithoutAURLAddsNoAttribute(t *testing.T) {
+	t.Parallel()
 
-			assert.Equal(t, tc.wantExit, exitCalled, "exit-called expectation")
-			if tc.wantExit {
-				assert.Equal(t, tc.wantCode, exitCode, "exit code")
-			}
+	err := NewErrNotImplemented("")
 
-			// Presentation must survive regardless of level.
-			entries := log.Entries()
-			require.NotEmpty(t, entries, "special-error presentation must still be emitted")
-			assert.Equal(t, tc.wantMsgLevel, entries[0].Level)
-			assert.Contains(t, entries[0].Message, tc.wantMsgFrag)
-		})
-	}
+	require.True(t, errors.Is(err, ErrNotImplemented))
+	assert.Empty(t, errors.Attrs(err))
+}
+
+// --- D2: the context ---------------------------------------------------------
+
+func TestACancelledContextDoesNotChangeTheReport(t *testing.T) {
+	t.Parallel()
+
+	h, cap := newTestHandler(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	code := h.Fatal(ctx, WithExitCode(errors.New("boom"), 3))
+
+	assert.Equal(t, 3, code)
+	require.Len(t, cap.Entries(), 1, "a cancelled context must not suppress the report")
 }

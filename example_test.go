@@ -1,35 +1,61 @@
 package errorhandling_test
 
 import (
+	"context"
 	"fmt"
+	"log/slog"
+	"os"
 
-	"github.com/cockroachdb/errors"
+	"gitlab.com/phpboyscout/go/errors"
 
 	"gitlab.com/phpboyscout/go/errorhandling"
 )
 
-func ExampleWithUserHint() {
-	err := errors.New("connection refused")
-	hinted := errorhandling.WithUserHint(err, "Check that the server is running and the port is correct")
+// A terminal outcome is declared beside the sentinel it describes, so the error
+// carries its own disposition instead of the handler switching on it.
+func ExampleWithOutcome() {
+	errUpdateComplete := errorhandling.WithOutcome(
+		errors.NewSentinel("example.update_complete", "update complete — restart required"),
+		errorhandling.Outcome{
+			// Zero is legitimate: this outcome is terminal AND successful.
+			Code:    0,
+			Level:   slog.LevelWarn,
+			Message: "update complete — please run the command again",
+		},
+	)
 
-	fmt.Println(errors.FlattenHints(hinted))
-	// Output: Check that the server is running and the port is correct
-}
+	quiet := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+		Level: slog.LevelWarn,
+		ReplaceAttr: func(_ []string, a slog.Attr) slog.Attr {
+			if a.Key == slog.TimeKey || a.Key == errorhandling.KeyError {
+				return slog.Attr{}
+			}
 
-func ExampleWrapWithHint() {
-	err := errors.New("file not found")
-	wrapped := errorhandling.WrapWithHint(err, "loading config", "Run 'mytool init' to create the config file")
+			return a
+		},
+	}))
 
-	fmt.Println(wrapped.Error())
-	fmt.Println(errors.FlattenHints(wrapped))
+	handler := errorhandling.New(quiet, nil)
+
+	fmt.Println("exit code:", handler.Fatal(context.Background(), errUpdateComplete))
 	// Output:
-	// loading config: file not found
-	// Run 'mytool init' to create the config file
+	// level=WARN msg="update complete — please run the command again"
+	// exit code: 0
 }
 
-func ExampleNew() {
-	handler := errorhandling.New(nil, nil)
-	_ = handler // Use handler.Check, handler.Error, handler.Fatal, handler.Warn
+// The shape a main function takes: the handler reports and yields a code, and
+// main is the only thing that exits.
+func ExampleErrorHandler_Fatal() {
+	handler := errorhandling.New(slog.Default(), nil)
+
+	run := func() error { return nil }
+
+	if err := run(); err != nil {
+		os.Exit(handler.Fatal(context.Background(), err))
+	}
+
+	fmt.Println("clean run")
+	// Output: clean run
 }
 
 // slackHelp is an example HelpConfig implementation. The module ships only the

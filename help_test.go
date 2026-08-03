@@ -1,6 +1,7 @@
 package errorhandling
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"testing"
@@ -42,7 +43,7 @@ func TestErrorHandler_HelpMessage_InOutput(t *testing.T) {
 	log := NewCaptureLogger()
 
 	h := New(log.Logger(), stubHelp{team: "Platform", channel: "#alerts"})
-	h.Error(errors.New("something went wrong"))
+	h.Error(context.Background(), errors.New("something went wrong"))
 
 	entries := log.Entries()
 	require.NotEmpty(t, entries)
@@ -54,7 +55,7 @@ func TestErrorHandler_NilHelp_NoHelpInOutput(t *testing.T) {
 	log := NewCaptureLogger()
 
 	h := New(log.Logger(), nil)
-	h.Error(errors.New("something went wrong"))
+	h.Error(context.Background(), errors.New("something went wrong"))
 
 	entries := log.Entries()
 	require.NotEmpty(t, entries)
@@ -66,7 +67,7 @@ func TestErrorHandler_EmptyHelpMessage_NoHelpInOutput(t *testing.T) {
 
 	// A configured-but-silent implementation must not add an empty help key.
 	h := New(log.Logger(), stubHelp{})
-	h.Error(errors.New("something went wrong"))
+	h.Error(context.Background(), errors.New("something went wrong"))
 
 	entries := log.Entries()
 	require.NotEmpty(t, entries)
