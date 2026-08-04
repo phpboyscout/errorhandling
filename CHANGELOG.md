@@ -1,5 +1,13 @@
 # Changelog
 
+## [v0.3.0](https://gitlab.com/phpboyscout/go/errorhandling/-/releases/v0.3.0)
+
+[Compare to previous version](https://gitlab.com/phpboyscout/go/errorhandling/-/compare/v0.2.0...v0.3.0)
+
+### Features
+
+- **stack**: report the stack where the error began ([c4f2ef4](https://gitlab.com/phpboyscout/go/errorhandling/-/commit/c4f2ef435936399acbdc085474efbfc3fe435826))
+
 ## [v0.2.0](https://gitlab.com/phpboyscout/go/errorhandling/-/releases/v0.2.0)
 
 [Compare to previous version](https://gitlab.com/phpboyscout/go/errorhandling/-/compare/v0.1.1...v0.2.0)
