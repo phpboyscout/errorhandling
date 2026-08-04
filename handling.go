@@ -82,6 +82,11 @@ type ReportOption func(*reportConfig)
 type reportConfig struct {
 	prefix string
 	quiet  bool
+
+	// stackDepth bounds the reported stack. Zero means unset, so configure can
+	// tell "the caller said nothing" from "the caller asked for no bound",
+	// which is what a negative value says.
+	stackDepth int
 }
 
 // WithPrefix labels the report, for distinguishing which phase of a run failed.
@@ -96,6 +101,23 @@ func WithPrefix(prefix string) ReportOption {
 // still emitted at debug, so --debug continues to surface it.
 func Quietly() ReportOption {
 	return func(c *reportConfig) { c.quiet = true }
+}
+
+// WithStackDepth bounds how many frames of a reported stack are shown.
+//
+// The default is [DefaultStackDepth]. A negative value removes the bound, for a
+// caller that wants everything the error captured.
+//
+// The frames kept are the innermost, so the failure and its immediate callers
+// survive and runtime.main and runtime.goexit are the first to go. That is the
+// end worth losing.
+//
+// This bounds REPORTING, not capture. go/errors captures more than this so the
+// frames are there when a caller raises the bound; the two answer different
+// questions, one about the cost of making an error and one about the width of
+// a terminal.
+func WithStackDepth(frames int) ReportOption {
+	return func(c *reportConfig) { c.stackDepth = frames }
 }
 
 // StandardErrorHandler is the default [ErrorHandler].
@@ -194,8 +216,8 @@ func (h *StandardErrorHandler) report(
 	// The stack is large and rarely what a log line is for, so LogValue omits
 	// it. Debug is where someone has asked for everything.
 	if h.Logger.Enabled(ctx, slog.LevelDebug) {
-		if stack := errors.StackOf(err); stack != nil {
-			attrs = append(attrs, KeyStacktrace, stack.String())
+		if trace := renderStacks(err, cfg.stackDepth); trace != "" {
+			attrs = append(attrs, KeyStacktrace, trace)
 		}
 	}
 
