@@ -23,19 +23,36 @@ const (
 )
 
 var (
-	// ErrNotImplemented marks a command that exists but does nothing yet. The
-	// gtb generator emits `return errorhandling.ErrNotImplemented` for a
-	// scaffolded command with no body.
+	// ErrNotImplemented marks a command that exists but does nothing yet.
 	ErrNotImplemented = WithOutcome(
 		errors.NewSentinel("errorhandling.not_implemented", "command not yet implemented"),
 		Outcome{Code: ExitCodeUsage, Level: slog.LevelWarn},
 	)
 
-	// ErrRunSubCommand marks a parent command invoked without a subcommand. The
-	// generator emits `return errorhandling.ErrRunSubCommand` for a command
-	// that has children.
+	// ErrRunSubCommand marks a parent command invoked without a subcommand,
+	// where being invoked without one is itself the mistake.
+	//
+	// That is a choice, not a rule: a parent that only groups its children can
+	// equally treat a bare invocation as a request for help and succeed. Return
+	// this when the command genuinely cannot act on its own.
 	ErrRunSubCommand = WithOutcome(
 		errors.NewSentinel("errorhandling.run_subcommand", "subcommand required"),
+		Outcome{Code: ExitCodeUsage, Level: slog.LevelWarn, Usage: true},
+	)
+
+	// ErrUnknownSubCommand marks a parent command given a verb it does not have.
+	//
+	// Cobra reports an unknown command for the root only, so a parent that wants
+	// to catch a mistyped subcommand has to do it in its own run function. Wrap
+	// this with the offending verb and the command path:
+	//
+	//	errors.Wrapf(errorhandling.ErrUnknownSubCommand,
+	//		"unknown command %q for %q", args[0], cmd.CommandPath())
+	//
+	// Distinct from ErrRunSubCommand: there, no subcommand was given at all;
+	// here, one was, and it does not exist.
+	ErrUnknownSubCommand = WithOutcome(
+		errors.NewSentinel("errorhandling.unknown_subcommand", "unknown subcommand"),
 		Outcome{Code: ExitCodeUsage, Level: slog.LevelWarn, Usage: true},
 	)
 

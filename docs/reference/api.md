@@ -117,11 +117,12 @@ The single entry point every other reporting method funnels into.
 - **`level`** is one of the [level constants](levels.md). An unrecognised string logs
   at error and does not exit, rather than being dropped.
 
-Special errors — [`ErrRunSubCommand`](#errrunsubcommand),
-[`ErrNotImplemented`](#errnotimplemented) and anything marked unimplemented — take a
-different path: they get their own presentation and skip hints, details, stack traces,
-the help message and the prefix. See
-[Limitations](limitations.md#special-errors-discard-most-of-the-report).
+The sentinels that carry an [`Outcome`](#outcome) — [`ErrRunSubCommand`](#errrunsubcommand),
+[`ErrUnknownSubCommand`](#errunknownsubcommand) and [`ErrNotImplemented`](#errnotimplemented) —
+override the level and exit code the caller asked for, because the error knows what kind
+of ending it is and the reporting site usually does not. Everything else they carry —
+the prefix, hints, details, the stack at debug, the help message and any `errors.Wrap`
+context — is reported normally.
 
 ### Fatal
 
@@ -295,15 +296,48 @@ the handler emits as a separate `INFO` line: `Track progress url=<issueURL>`.
 ### ErrRunSubCommand
 
 ```go
-var ErrRunSubCommand = errors.New("subcommand required")
+var ErrRunSubCommand = WithOutcome(
+	errors.NewSentinel("errorhandling.run_subcommand", "subcommand required"),
+	Outcome{Code: ExitCodeUsage, Level: slog.LevelWarn, Usage: true},
+)
 ```
 
-A parent command invoked with no subcommand. The handler calls the
-[`SetUsage`](#setusage) printer, then logs `Subcommand required` at warn.
+A parent command invoked with no subcommand, **where that is itself the mistake**. The
+handler calls the [`SetUsage`](#setusage) printer, logs at warn, and the process exits
+[`ExitCodeUsage`](exit-codes.md).
 
-Detection is `errors.Is`, so any wrapping still matches — but the wrap's own message is
-never shown. `errors.Wrap(ErrRunSubCommand, "config")` reports exactly the same line as
-the bare sentinel.
+Returning it is a choice, not a rule. A parent that only groups its children can
+equally treat a bare invocation as a request for help and succeed; reach for this when
+the command genuinely cannot act on its own.
+
+Detection is `errors.Is`, and a wrap's own message **is** reported —
+`errors.Wrap(ErrRunSubCommand, "config")` logs `config: subcommand required`. The
+[`Outcome`](#outcome) travels through the wrap with it.
+
+### ErrUnknownSubCommand
+
+```go
+var ErrUnknownSubCommand = WithOutcome(
+	errors.NewSentinel("errorhandling.unknown_subcommand", "unknown subcommand"),
+	Outcome{Code: ExitCodeUsage, Level: slog.LevelWarn, Usage: true},
+)
+```
+
+A parent command given a verb it does not have. Distinct from
+[`ErrRunSubCommand`](#errrunsubcommand): there, no subcommand was given at all; here,
+one was, and it does not exist.
+
+Cobra reports an unknown command for the **root only**, so a parent that wants to catch
+a mistyped subcommand has to do it in its own run function. Wrap the sentinel with the
+offending verb and the command path:
+
+```go
+errors.Wrapf(errorhandling.ErrUnknownSubCommand,
+	"unknown command %q for %q", args[0], cmd.CommandPath())
+```
+
+which reports `unknown command "bogus" for "tool alpha": unknown subcommand`, prints
+usage, and exits `2`.
 
 ## Supplying a support channel
 

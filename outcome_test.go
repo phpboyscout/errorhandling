@@ -106,8 +106,9 @@ func TestSentinelsCarryTheirOutcomes(t *testing.T) {
 		level slog.Level
 		usage bool
 	}{
-		"not implemented": {errorhandling.ErrNotImplemented, errorhandling.ExitCodeUsage, slog.LevelWarn, false},
-		"run subcommand":  {errorhandling.ErrRunSubCommand, errorhandling.ExitCodeUsage, slog.LevelWarn, true},
+		"not implemented":    {errorhandling.ErrNotImplemented, errorhandling.ExitCodeUsage, slog.LevelWarn, false},
+		"run subcommand":     {errorhandling.ErrRunSubCommand, errorhandling.ExitCodeUsage, slog.LevelWarn, true},
+		"unknown subcommand": {errorhandling.ErrUnknownSubCommand, errorhandling.ExitCodeUsage, slog.LevelWarn, true},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -119,6 +120,43 @@ func TestSentinelsCarryTheirOutcomes(t *testing.T) {
 			assert.Equal(t, tc.usage, outcome.Usage)
 		})
 	}
+}
+
+// TestWrappingASentinelKeepsItsIdentityAndOutcome pins the shape every caller of
+// ErrUnknownSubCommand uses: the sentinel says what kind of failure it is and
+// how the process should end, and the wrap says which verb caused it. Both have
+// to survive together, or the caller has to choose between a useful message and
+// a correct exit code.
+func TestWrappingASentinelKeepsItsIdentityAndOutcome(t *testing.T) {
+	t.Parallel()
+
+	err := errors.Wrapf(errorhandling.ErrUnknownSubCommand,
+		"unknown command %q for %q", "bogus", "tool alpha")
+
+	require.ErrorIs(t, err, errorhandling.ErrUnknownSubCommand)
+
+	outcome, ok := errorhandling.OutcomeOf(err)
+	require.True(t, ok, "an outcome is reachable through a wrap, not only on the bare sentinel")
+	assert.Equal(t, errorhandling.ExitCodeUsage, outcome.Code)
+	assert.True(t, outcome.Usage)
+
+	// The wrap's own text has to survive to the reported line. A caller that
+	// names the offending verb and then sees only "unknown subcommand" logged
+	// has gained nothing over the bare sentinel.
+	buf := errorhandling.NewCaptureLogger()
+	h := errorhandling.New(buf.Logger(), nil)
+
+	printed := false
+	h.SetUsage(func() error { printed = true; return nil })
+
+	code := h.Fatal(context.Background(), err)
+
+	require.Len(t, buf.Entries(), 1)
+	assert.Equal(t, `unknown command "bogus" for "tool alpha": unknown subcommand`,
+		buf.Entries()[0].Message)
+	assert.Equal(t, slog.LevelWarn, buf.Entries()[0].Level)
+	assert.True(t, printed, "the outcome asks for usage")
+	assert.Equal(t, errorhandling.ExitCodeUsage, code)
 }
 
 func TestNoOutcomeLeavesTheCallerInCharge(t *testing.T) {
