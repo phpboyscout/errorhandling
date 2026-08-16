@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"slices"
 
 	"gitlab.com/phpboyscout/go/errors"
 
@@ -24,10 +25,12 @@ func ExampleWithOutcome() {
 		},
 	)
 
+	// The error arrives as a group, so suppressing it here means matching on the
+	// group name its attributes are nested under, not on a top-level key.
 	quiet := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
 		Level: slog.LevelWarn,
-		ReplaceAttr: func(_ []string, a slog.Attr) slog.Attr {
-			if a.Key == slog.TimeKey || a.Key == errorhandling.KeyError {
+		ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
+			if a.Key == slog.TimeKey || slices.Contains(groups, errorhandling.KeyError) {
 				return slog.Attr{}
 			}
 

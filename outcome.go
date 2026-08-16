@@ -61,6 +61,10 @@ func (e *outcomeError) Unwrap() error     { return e.cause }
 func (e *outcomeError) ErrorKind() string { return OutcomeKind }
 func (e *outcomeError) ErrorPayload() any { return e.outcome }
 
+// LogValue keeps the error structured when an outcome is the outermost
+// attachment — which it is for every sentinel this module ships.
+func (e *outcomeError) LogValue() slog.Value { return logValue(e) }
+
 // WithOutcome attaches a terminal disposition to err. Returns nil when err is
 // nil, so it composes at a sentinel declaration without a guard.
 //

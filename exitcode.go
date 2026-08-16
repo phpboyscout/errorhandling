@@ -1,6 +1,8 @@
 package errorhandling
 
 import (
+	"log/slog"
+
 	"gitlab.com/phpboyscout/go/errors"
 )
 
@@ -31,6 +33,9 @@ func (e *exitCodeError) ErrorKind() string { return ExitCodeKind }
 // ErrorPayload exposes the code, so it reaches a log record and a span rather
 // than being readable only by this module's own errors.As.
 func (e *exitCodeError) ErrorPayload() any { return e.code }
+
+// LogValue keeps the error structured when a code is the outermost attachment.
+func (e *exitCodeError) LogValue() slog.Value { return logValue(e) }
 
 // WithExitCode attaches a process exit code to err. The ErrorHandler's fatal
 // path uses the attached code instead of the default 1, letting callers thread
