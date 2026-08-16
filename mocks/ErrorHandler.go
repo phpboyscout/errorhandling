@@ -5,7 +5,10 @@
 package mocks
 
 import (
+	"context"
+
 	mock "github.com/stretchr/testify/mock"
+	"gitlab.com/phpboyscout/go/errorhandling"
 )
 
 // NewMockErrorHandler creates a new instance of MockErrorHandler. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
@@ -35,64 +38,12 @@ func (_m *MockErrorHandler) EXPECT() *MockErrorHandler_Expecter {
 	return &MockErrorHandler_Expecter{mock: &_m.Mock}
 }
 
-// Check provides a mock function for the type MockErrorHandler
-func (_mock *MockErrorHandler) Check(err error, prefix string, level string) {
-	_mock.Called(err, prefix, level)
-	return
-}
-
-// MockErrorHandler_Check_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Check'
-type MockErrorHandler_Check_Call struct {
-	*mock.Call
-}
-
-// Check is a helper method to define mock.On call
-//   - err error
-//   - prefix string
-//   - level string
-func (_e *MockErrorHandler_Expecter) Check(err interface{}, prefix interface{}, level interface{}) *MockErrorHandler_Check_Call {
-	return &MockErrorHandler_Check_Call{Call: _e.mock.On("Check", err, prefix, level)}
-}
-
-func (_c *MockErrorHandler_Check_Call) Run(run func(err error, prefix string, level string)) *MockErrorHandler_Check_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 error
-		if args[0] != nil {
-			arg0 = args[0].(error)
-		}
-		var arg1 string
-		if args[1] != nil {
-			arg1 = args[1].(string)
-		}
-		var arg2 string
-		if args[2] != nil {
-			arg2 = args[2].(string)
-		}
-		run(
-			arg0,
-			arg1,
-			arg2,
-		)
-	})
-	return _c
-}
-
-func (_c *MockErrorHandler_Check_Call) Return() *MockErrorHandler_Check_Call {
-	_c.Call.Return()
-	return _c
-}
-
-func (_c *MockErrorHandler_Check_Call) RunAndReturn(run func(err error, prefix string, level string)) *MockErrorHandler_Check_Call {
-	_c.Run(run)
-	return _c
-}
-
 // Error provides a mock function for the type MockErrorHandler
-func (_mock *MockErrorHandler) Error(err error, prefixes ...string) {
-	if len(prefixes) > 0 {
-		_mock.Called(err, prefixes)
+func (_mock *MockErrorHandler) Error(ctx context.Context, err error, opts ...errorhandling.ReportOption) {
+	if len(opts) > 0 {
+		_mock.Called(ctx, err, opts)
 	} else {
-		_mock.Called(err)
+		_mock.Called(ctx, err)
 	}
 
 	return
@@ -104,28 +55,34 @@ type MockErrorHandler_Error_Call struct {
 }
 
 // Error is a helper method to define mock.On call
+//   - ctx context.Context
 //   - err error
-//   - prefixes ...string
-func (_e *MockErrorHandler_Expecter) Error(err interface{}, prefixes ...interface{}) *MockErrorHandler_Error_Call {
+//   - opts ...errorhandling.ReportOption
+func (_e *MockErrorHandler_Expecter) Error(ctx any, err any, opts ...any) *MockErrorHandler_Error_Call {
 	return &MockErrorHandler_Error_Call{Call: _e.mock.On("Error",
-		append([]interface{}{err}, prefixes...)...)}
+		append([]any{ctx, err}, opts...)...)}
 }
 
-func (_c *MockErrorHandler_Error_Call) Run(run func(err error, prefixes ...string)) *MockErrorHandler_Error_Call {
+func (_c *MockErrorHandler_Error_Call) Run(run func(ctx context.Context, err error, opts ...errorhandling.ReportOption)) *MockErrorHandler_Error_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 error
+		var arg0 context.Context
 		if args[0] != nil {
-			arg0 = args[0].(error)
+			arg0 = args[0].(context.Context)
 		}
-		var arg1 []string
-		var variadicArgs []string
-		if len(args) > 1 {
-			variadicArgs = args[1].([]string)
+		var arg1 error
+		if args[1] != nil {
+			arg1 = args[1].(error)
 		}
-		arg1 = variadicArgs
+		var arg2 []errorhandling.ReportOption
+		var variadicArgs []errorhandling.ReportOption
+		if len(args) > 2 {
+			variadicArgs = args[2].([]errorhandling.ReportOption)
+		}
+		arg2 = variadicArgs
 		run(
 			arg0,
-			arg1...,
+			arg1,
+			arg2...,
 		)
 	})
 	return _c
@@ -136,20 +93,32 @@ func (_c *MockErrorHandler_Error_Call) Return() *MockErrorHandler_Error_Call {
 	return _c
 }
 
-func (_c *MockErrorHandler_Error_Call) RunAndReturn(run func(err error, prefixes ...string)) *MockErrorHandler_Error_Call {
+func (_c *MockErrorHandler_Error_Call) RunAndReturn(run func(ctx context.Context, err error, opts ...errorhandling.ReportOption)) *MockErrorHandler_Error_Call {
 	_c.Run(run)
 	return _c
 }
 
 // Fatal provides a mock function for the type MockErrorHandler
-func (_mock *MockErrorHandler) Fatal(err error, prefixes ...string) {
-	if len(prefixes) > 0 {
-		_mock.Called(err, prefixes)
+func (_mock *MockErrorHandler) Fatal(ctx context.Context, err error, opts ...errorhandling.ReportOption) int {
+	var tmpRet mock.Arguments
+	if len(opts) > 0 {
+		tmpRet = _mock.Called(ctx, err, opts)
 	} else {
-		_mock.Called(err)
+		tmpRet = _mock.Called(ctx, err)
+	}
+	ret := tmpRet
+
+	if len(ret) == 0 {
+		panic("no return value specified for Fatal")
 	}
 
-	return
+	var r0 int
+	if returnFunc, ok := ret.Get(0).(func(context.Context, error, ...errorhandling.ReportOption) int); ok {
+		r0 = returnFunc(ctx, err, opts...)
+	} else {
+		r0 = ret.Get(0).(int)
+	}
+	return r0
 }
 
 // MockErrorHandler_Fatal_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Fatal'
@@ -158,40 +127,46 @@ type MockErrorHandler_Fatal_Call struct {
 }
 
 // Fatal is a helper method to define mock.On call
+//   - ctx context.Context
 //   - err error
-//   - prefixes ...string
-func (_e *MockErrorHandler_Expecter) Fatal(err interface{}, prefixes ...interface{}) *MockErrorHandler_Fatal_Call {
+//   - opts ...errorhandling.ReportOption
+func (_e *MockErrorHandler_Expecter) Fatal(ctx any, err any, opts ...any) *MockErrorHandler_Fatal_Call {
 	return &MockErrorHandler_Fatal_Call{Call: _e.mock.On("Fatal",
-		append([]interface{}{err}, prefixes...)...)}
+		append([]any{ctx, err}, opts...)...)}
 }
 
-func (_c *MockErrorHandler_Fatal_Call) Run(run func(err error, prefixes ...string)) *MockErrorHandler_Fatal_Call {
+func (_c *MockErrorHandler_Fatal_Call) Run(run func(ctx context.Context, err error, opts ...errorhandling.ReportOption)) *MockErrorHandler_Fatal_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 error
+		var arg0 context.Context
 		if args[0] != nil {
-			arg0 = args[0].(error)
+			arg0 = args[0].(context.Context)
 		}
-		var arg1 []string
-		var variadicArgs []string
-		if len(args) > 1 {
-			variadicArgs = args[1].([]string)
+		var arg1 error
+		if args[1] != nil {
+			arg1 = args[1].(error)
 		}
-		arg1 = variadicArgs
+		var arg2 []errorhandling.ReportOption
+		var variadicArgs []errorhandling.ReportOption
+		if len(args) > 2 {
+			variadicArgs = args[2].([]errorhandling.ReportOption)
+		}
+		arg2 = variadicArgs
 		run(
 			arg0,
-			arg1...,
+			arg1,
+			arg2...,
 		)
 	})
 	return _c
 }
 
-func (_c *MockErrorHandler_Fatal_Call) Return() *MockErrorHandler_Fatal_Call {
-	_c.Call.Return()
+func (_c *MockErrorHandler_Fatal_Call) Return(n int) *MockErrorHandler_Fatal_Call {
+	_c.Call.Return(n)
 	return _c
 }
 
-func (_c *MockErrorHandler_Fatal_Call) RunAndReturn(run func(err error, prefixes ...string)) *MockErrorHandler_Fatal_Call {
-	_c.Run(run)
+func (_c *MockErrorHandler_Fatal_Call) RunAndReturn(run func(ctx context.Context, err error, opts ...errorhandling.ReportOption) int) *MockErrorHandler_Fatal_Call {
+	_c.Call.Return(run)
 	return _c
 }
 
@@ -208,7 +183,7 @@ type MockErrorHandler_SetUsage_Call struct {
 
 // SetUsage is a helper method to define mock.On call
 //   - usage func() error
-func (_e *MockErrorHandler_Expecter) SetUsage(usage interface{}) *MockErrorHandler_SetUsage_Call {
+func (_e *MockErrorHandler_Expecter) SetUsage(usage any) *MockErrorHandler_SetUsage_Call {
 	return &MockErrorHandler_SetUsage_Call{Call: _e.mock.On("SetUsage", usage)}
 }
 
@@ -236,11 +211,11 @@ func (_c *MockErrorHandler_SetUsage_Call) RunAndReturn(run func(usage func() err
 }
 
 // Warn provides a mock function for the type MockErrorHandler
-func (_mock *MockErrorHandler) Warn(err error, prefixes ...string) {
-	if len(prefixes) > 0 {
-		_mock.Called(err, prefixes)
+func (_mock *MockErrorHandler) Warn(ctx context.Context, err error, opts ...errorhandling.ReportOption) {
+	if len(opts) > 0 {
+		_mock.Called(ctx, err, opts)
 	} else {
-		_mock.Called(err)
+		_mock.Called(ctx, err)
 	}
 
 	return
@@ -252,28 +227,34 @@ type MockErrorHandler_Warn_Call struct {
 }
 
 // Warn is a helper method to define mock.On call
+//   - ctx context.Context
 //   - err error
-//   - prefixes ...string
-func (_e *MockErrorHandler_Expecter) Warn(err interface{}, prefixes ...interface{}) *MockErrorHandler_Warn_Call {
+//   - opts ...errorhandling.ReportOption
+func (_e *MockErrorHandler_Expecter) Warn(ctx any, err any, opts ...any) *MockErrorHandler_Warn_Call {
 	return &MockErrorHandler_Warn_Call{Call: _e.mock.On("Warn",
-		append([]interface{}{err}, prefixes...)...)}
+		append([]any{ctx, err}, opts...)...)}
 }
 
-func (_c *MockErrorHandler_Warn_Call) Run(run func(err error, prefixes ...string)) *MockErrorHandler_Warn_Call {
+func (_c *MockErrorHandler_Warn_Call) Run(run func(ctx context.Context, err error, opts ...errorhandling.ReportOption)) *MockErrorHandler_Warn_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 error
+		var arg0 context.Context
 		if args[0] != nil {
-			arg0 = args[0].(error)
+			arg0 = args[0].(context.Context)
 		}
-		var arg1 []string
-		var variadicArgs []string
-		if len(args) > 1 {
-			variadicArgs = args[1].([]string)
+		var arg1 error
+		if args[1] != nil {
+			arg1 = args[1].(error)
 		}
-		arg1 = variadicArgs
+		var arg2 []errorhandling.ReportOption
+		var variadicArgs []errorhandling.ReportOption
+		if len(args) > 2 {
+			variadicArgs = args[2].([]errorhandling.ReportOption)
+		}
+		arg2 = variadicArgs
 		run(
 			arg0,
-			arg1...,
+			arg1,
+			arg2...,
 		)
 	})
 	return _c
@@ -284,7 +265,7 @@ func (_c *MockErrorHandler_Warn_Call) Return() *MockErrorHandler_Warn_Call {
 	return _c
 }
 
-func (_c *MockErrorHandler_Warn_Call) RunAndReturn(run func(err error, prefixes ...string)) *MockErrorHandler_Warn_Call {
+func (_c *MockErrorHandler_Warn_Call) RunAndReturn(run func(ctx context.Context, err error, opts ...errorhandling.ReportOption)) *MockErrorHandler_Warn_Call {
 	_c.Run(run)
 	return _c
 }
