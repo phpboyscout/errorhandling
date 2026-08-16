@@ -1,123 +1,90 @@
 # Report levels
 
-The `level` argument to [`Check`](api.md#check) decides two things independently: the
-`slog` level the report is logged at, and whether the process exits afterwards. The
-level constants are plain strings, so an unrecognised value is possible and has a
-defined behaviour.
+Which `slog` level a report is logged at is decided by three things, in this order: the
+method you called, the [`Quietly`](api.md#quietly) option, and any
+[`Outcome`](api.md#outcome) the error carries. The last one wins.
 
-## What each level does to an ordinary error
+Whether the process ends is a separate decision, and not this module's:
+[`Fatal`](api.md#fatal) *returns* an exit code and leaves acting on it to `main`.
 
-| Constant | Value | Logged at | Exits? | With what code |
-|---|---|---|---|---|
-| `LevelFatal` | `"fatal"` | `ERROR` | yes | [`ExitCode(err)`](exit-codes.md) |
-| `LevelFatalQuiet` | `"fatal-quiet"` | `DEBUG` | yes | [`ExitCode(err)`](exit-codes.md) |
-| `LevelError` | `"error"` | `ERROR` | no | — |
-| `LevelWarn` | `"warn"` | `WARN` | no | — |
-| anything else | — | `ERROR` | no | — |
+## What each method logs at
 
-"Ordinary" means anything that is not a special error or an assertion failure; those
-two are covered further down and behave differently.
-
-### LevelFatal
-
-Logs the error message at `ERROR` with all the [fields](log-fields.md) the error
-carries, then calls the exit function with the error's exit code.
-
-### LevelFatalQuiet
-
-Identical to `LevelFatal` in every way except the log level: the message goes to
-`DEBUG`. It exists for terminations that are expected and user-initiated — a
-`SIGINT`, a `SIGTERM` — where the non-zero exit code is the signal and an error line
-would be noise. Turn debug on and the message is still there.
-
-This is the only level whose output most users will never see, which is the point.
-It is not a way to suppress a real failure: use it only when the exit code alone
-carries the whole meaning. See
-[Handle interrupts quietly](../how-to/handle-interrupts.md).
-
-### LevelError
-
-Logs at `ERROR` and returns. The caller keeps control and the process keeps running.
-This is the right level for a failure that is worth telling someone about but does not
-end the run — one file in a batch, one retry that did not work.
-
-### LevelWarn
-
-Logs at `WARN` and returns. For conditions that are not failures but are worth
-surfacing: a deprecated flag, a fallback that had to be taken.
-
-### What an unrecognised level does
-
-Logs at `ERROR` and does not exit. This is deliberate: a typo in a level string must
-never make a failure invisible, so the fallback is the loudest non-terminating option
-rather than a silent drop or a panic.
-
-There is no way to find out that a level was unrecognised — the report looks exactly
-like `LevelError`. If you build level strings dynamically, validate them against the
-constants yourself.
-
-## Which levels terminate the process
-
-Only `LevelFatal` and `LevelFatalQuiet`. Everything else — including an unrecognised
-level — logs and returns.
-
-A nil error terminates nothing at any level: `Check(nil, "", LevelFatal)` is a complete
-no-op and does **not** exit zero.
-
-## What a special error does, at every level
-
-A **special error** is one the handler recognises structurally rather than reporting
-verbatim:
-
-- anything satisfying `errors.Is(err, ErrRunSubCommand)`
-- anything satisfying `errors.Is(err, ErrNotImplemented)` or
-  `errors.HasUnimplementedError(err)` — which includes everything from
-  [`NewErrNotImplemented`](api.md#newerrnotimplemented)
-
-These get a fixed presentation *before* the level is consulted, so the level only
-decides whether the process then exits:
-
-| Error | Always logged | Exits at `fatal` / `fatal-quiet` | Exits at other levels |
+| Method | Logs at | Returns a code | Honours `Quietly` |
 |---|---|---|---|
-| `ErrRunSubCommand` | usage printed, then `WARN Subcommand required` | yes, code [`2`](exit-codes.md#exitcodeusage) | no |
-| unimplemented | `WARN Command not yet implemented`, plus `INFO Track progress` when an issue link is attached | yes, code [`2`](exit-codes.md#exitcodeusage) | no |
+| [`Fatal`](api.md#fatal) | `ERROR` | yes | yes |
+| [`Error`](api.md#error) | `ERROR` | no | **no** |
+| [`Warn`](api.md#warn) | `WARN` | no | **no** |
 
-Three consequences worth knowing before you rely on them:
+A nil error reports nothing at any of them. `Fatal(ctx, nil)` returns `0` without
+logging, so a fatal path guarded by a nil check needs no second guard.
 
-- **The exit code is always `2`.** A code attached with
-  [`WithExitCode`](api.md#withexitcode) is ignored on this path.
-- **`LevelFatalQuiet` is not quiet here.** The `WARN` presentation is emitted whatever
-  the level, so a special error reported quietly still prints a line.
-- **The rest of the report is dropped** — prefix, hints, details, stack trace and help
-  message all go unrendered. See
-  [Limitations](limitations.md#special-errors-discard-most-of-the-report).
+### Quietly only applies to Fatal
+
+[`Quietly`](api.md#quietly) demotes the line to `DEBUG` without changing the exit code.
+It is read on the fatal path only — `Error(ctx, err, Quietly())` still logs at `ERROR`,
+silently ignoring the option.
+
+That is deliberate rather than an oversight: the option exists for a termination whose
+whole meaning is the exit code, and a non-terminal report has no code to carry the
+meaning instead.
+
+## An outcome overrides the level
+
+If the error carries an [`Outcome`](api.md#outcome), its `Level` replaces whatever the
+method and `Quietly` decided, and its `Code` replaces the attached exit code:
+
+```go
+h.Error(ctx, errorhandling.ErrRunSubCommand)   // logs at WARN, not ERROR
+h.Fatal(ctx, errorhandling.ErrRunSubCommand, errorhandling.Quietly())
+                                               // logs at WARN, not DEBUG; returns 2
+```
+
+The error knows what kind of ending it is; the reporting site usually does not. A caller
+that needs a different level has to replace the outcome, not argue with it — see
+[Limitations](limitations.md#an-outcome-overrides-the-level-and-code-the-caller-asked-for).
+
+## What the sentinels do
+
+The three sentinels this module ships all carry an outcome, so all three report at
+`WARN` whichever method reports them, and all three make `Fatal` return `2`:
+
+| Error | Message | Prints usage | `Fatal` returns |
+|---|---|---|---|
+| [`ErrRunSubCommand`](api.md#errrunsubcommand) | `subcommand required` | yes | [`2`](exit-codes.md#exitcodeusage) |
+| [`ErrUnknownSubCommand`](api.md#errunknownsubcommand) | `unknown subcommand` | yes | [`2`](exit-codes.md#exitcodeusage) |
+| [`ErrNotImplemented`](api.md#errnotimplemented) | `command not yet implemented` | no | [`2`](exit-codes.md#exitcodeusage) |
+
+Usage is printed through the [`SetUsage`](api.md#setusage) seam, before the report. With
+no printer registered the error is still reported and the code is still `2`; there is
+simply no usage output.
+
+**Everything the error carries is still reported.** Wrapping one of these does not lose
+the wrap's message, and hints, details, attributes, the prefix, the help message and the
+stack at debug all arrive as usual:
+
+```go
+errors.Wrap(errorhandling.ErrRunSubCommand, "config")
+// WARN config: subcommand required
+```
 
 ## What an assertion failure does
 
-An error created by [`NewAssertionFailure`](api.md#newassertionfailure), or any error
-satisfying `errors.HasAssertionFailure`, is reported **twice**:
+An error from [`NewAssertionFailure`](api.md#newassertionfailure) is reported like any
+other error: **one record**, at the level the method asked for, identified by the kind
+`errorhandling.assertion_failure` inside the [`err` group](log-fields.md#err).
 
-1. `ERROR Internal error (assertion failure)` with the whole error value under the key
-   `error`. This line is emitted at error level regardless of the requested level and
-   regardless of whether debug is enabled.
-2. `DEBUG Assertion detail` carrying the full `%+v` rendering under
-   [`stacktrace`](log-fields.md#stacktrace) — only when the logger has debug enabled.
-3. Then the error falls through to the ordinary path for the requested level, producing
-   a second line with the error's own message and fields.
+```go
+h.Warn(ctx, errorhandling.NewAssertionFailure("bad: %s", "x<0"))
+// WARN bad: x<0: internal invariant violated   err.kind=errorhandling.assertion_failure
+```
 
-So an assertion failure at `LevelWarn` still produces an `ERROR` line, and one at
-`LevelFatalQuiet` is not quiet. The reasoning is that an assertion failure means the
-program is wrong, and the caller's opinion about severity is not the last word on that.
-
-**How much of the stack that first line prints depends on your `slog` handler.**
-The standard `TextHandler` formats an arbitrary value with `%+v`, which for a
-`cockroachdb/errors` value means the message *and* every stack frame — at error level,
-with debug off. The standard `JSONHandler` special-cases errors and prints
-`err.Error()` alone. If you need assertion failures to stay one line at error level,
-choose a handler that renders error values by message.
+It carries no outcome, so it does not override the level and `Fatal` returns `1` unless a
+code is attached. The kind is what a query filters on — which is why the second,
+fixed `ERROR Internal error (assertion failure)` line earlier versions emitted was
+dropped: it said in prose what the record already says in a field.
 
 ## Related
 
-- [Exit codes](exit-codes.md) — which code the process actually uses
+- [Exit codes](exit-codes.md) — which code `Fatal` returns
 - [Log fields](log-fields.md) — what appears alongside the message
 - [The reporting model](../explanation/reporting-model.md) — why the split is drawn here

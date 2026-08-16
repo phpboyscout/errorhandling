@@ -10,10 +10,10 @@ the code to the error and let it travel.
 return errorhandling.WithExitCode(err, 3)
 ```
 
-Report it at fatal level and the handler exits with that code:
+Report it with `Fatal` and that is the code you get back to exit on:
 
 ```go
-handler.Fatal(err) // exits 3
+os.Exit(handler.Fatal(ctx, err)) // 3
 ```
 
 Nothing in between needs to know. The attachment is **transparent to `errors.Is` and
@@ -57,28 +57,32 @@ worth honouring because other software already understands them:
 The `128+signum` convention is what shells, CI runners, and supervisors expect from a
 signalled process; see [handling interrupts](handle-interrupts.md).
 
-## Special errors exit 2
+## An outcome states the code, and wins
 
-A **special error** — one wrapping `ErrRunSubCommand` (a subcommand is required) or an
-unimplemented error (`NewErrNotImplemented`) — is reported specially: the handler prints
-its usage / notice and **downgrades the log line to a warning**. Reported at fatal level
-it still terminates the process, and it does so with the conventional usage code **`2`**
-(`ExitCodeUsage`), not the generic `1`:
+Some errors know how the program should end. This module's usage sentinels —
+`ErrRunSubCommand`, `ErrUnknownSubCommand`, `ErrNotImplemented` — carry an
+[`Outcome`](../reference/api.md#outcome) saying "warn, print usage, exit `2`":
 
 ```go
-handler.Fatal(errorhandling.ErrRunSubCommand) // prints usage, exits 2
+code := handler.Fatal(ctx, errorhandling.ErrRunSubCommand) // prints usage, code 2
 ```
 
 This lets a calling script tell an *invalid invocation* apart from an ordinary runtime
-failure, and matches what CLI frameworks such as Cobra do in the same situation. Reported
-at a **non-fatal** level (`Error` / `Warn`) the same special errors present their notice
-without exiting.
+failure, and matches what CLI frameworks such as Cobra do in the same situation.
 
-`2` wins over anything you attached. `Fatal(WithExitCode(ErrRunSubCommand, 64))` exits
-`2`, not `64` — the handler takes the usage path before it ever looks at the error's
-code. There is no way to override that; if a usage failure needs its own exit code,
-report it as an ordinary error instead of wrapping the sentinel. The full resolution
-order is in [the exit codes reference](../reference/exit-codes.md#how-the-exit-code-is-resolved).
+An outcome beats an attached code: `Fatal(ctx, WithExitCode(ErrRunSubCommand, 64))`
+returns `2`, not `64`, because the outcome is the more specific statement about how this
+error ends. If a usage failure needs its own code, attach your own outcome rather than
+wrapping the sentinel:
+
+```go
+errorhandling.WithOutcome(err, errorhandling.Outcome{
+	Code: 64, Level: slog.LevelWarn, Usage: true,
+})
+```
+
+The full resolution order is in
+[the exit codes reference](../reference/exit-codes.md#how-the-exit-code-is-resolved).
 
 ## Why not just call os.Exit?
 
@@ -91,50 +95,53 @@ Attaching the code to the error keeps the *decision* where the knowledge is and 
 *act* of exiting in exactly one place. One exit path is also one place to change when
 that behaviour needs to.
 
-!!! danger "Fatal exits — so it also skips defers"
-    The same caveat applies to the handler's own fatal path: `Fatal` (and
-    `Check(..., LevelFatal)`) call the exit func, so **deferred cleanup in the calling
-    frames does not run.**
-
-    Anything that *must* happen before the process dies — flushing telemetry, removing
-    a lock file — has to be invoked **explicitly before** the fatal call, not left to a
-    `defer`. Make it idempotent (a `sync.Once`) so the non-fatal paths can still defer
-    it safely:
-
-    ```go
-    flush := sync.OnceFunc(func() { telemetry.Flush(context.Background()) })
-    defer flush() // normal paths
-
-    if err := run(); err != nil {
-        flush()          // explicitly, before the exit
-        handler.Fatal(err)
-    }
-    ```
-
-    Use a **fresh, bounded** context for that cleanup — never a context that the
-    failure itself already cancelled, or the flush aborts immediately.
-
-## Testing without killing the test binary
-
-Inject the exit function — see [testing](test-error-handling.md):
+**`Fatal` does not exit either.** It reports and returns a code; `main` is the one place
+that acts on it:
 
 ```go
-var code int
-h := errorhandling.New(logger, nil,
-	errorhandling.WithExitFunc(func(c int) { code = c }))
+func main() {
+	os.Exit(run())
+}
 
-h.Fatal(errorhandling.WithExitCode(errors.New("boom"), 3))
+func run() int {
+	flush := sync.OnceFunc(func() { telemetry.Flush(context.Background()) })
+	defer flush() // normal paths
+
+	if err := doWork(); err != nil {
+		flush() // explicitly, before returning a code main will exit on
+
+		return handler.Fatal(context.Background(), err)
+	}
+
+	return 0
+}
+```
+
+Deferred cleanup in `run` still runs, because `run` returns normally — but anything
+deferred *above* `os.Exit` does not. Make pre-exit work idempotent (a `sync.Once`) so
+the normal paths can still defer it, and give it a **fresh, bounded** context, never one
+the failure itself already cancelled.
+
+## Testing
+
+`Fatal` returns an `int` and nothing exits, so there is no seam to inject — see
+[testing](test-error-handling.md):
+
+```go
+h := errorhandling.New(logger, nil)
+
+code := h.Fatal(t.Context(), errorhandling.WithExitCode(errors.New("boom"), 3))
 assert.Equal(t, 3, code)
 ```
 
 ## What is not supported
 
-- **Choosing the code for a special error.** It is always `2` — see above.
-- **Mapping a level to a code.** `LevelFatal` and `LevelFatalQuiet` exit with the same
-  code for the same error.
-- **Carrying a code across a process boundary.** The wrapper does not survive
-  `errors.EncodeError`/`DecodeError`, or anything that rebuilds an error from its
-  message string; the code comes back as `1`.
+- **Overriding the code on an error that carries an outcome.** Attach a different
+  outcome instead — see above.
+- **Mapping a level to a code.** `Quietly()` changes how loudly a fatal report is
+  logged, never what it returns.
+- **Carrying a code through a rebuilt error.** Anything that reconstructs an error from
+  its message string drops the wrapper; the code comes back as `1`.
 - **Range checking.** `WithExitCode(err, 300)` is accepted and the shell sees `44`.
 
 ## Related

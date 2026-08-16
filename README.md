@@ -16,24 +16,29 @@
 ---
 
 `gitlab.com/phpboyscout/go/errorhandling` turns an error into output a user can act
-on. It wraps [cockroachdb/errors](https://github.com/cockroachdb/errors) with a small
-reporting pipeline: attach a **hint** telling the user what to do, attach an **exit
-code** to the error itself, route by level, and surface stack traces only when debug
-logging is on.
+on. It adds a small reporting pipeline over
+[go/errors](https://errors.go.phpboyscout.uk): attach a **hint** telling the user what to
+do, attach an **exit code** or an **outcome** to the error itself, and surface stack
+traces only when debug logging is on.
 
 ## Design
 
-- **Framework-free.** The only dependency is `cockroachdb/errors`. No CLI framework,
-  no config system, no logging library — the logging seam is a plain `*slog.Logger`
-  and a `depfootprint_test.go` guard enforces the boundary.
+- **Framework-free, and dependency-free.** The only dependency is `go/errors`, which is
+  stdlib-only. No CLI framework, no config system, no logging library — the logging seam
+  is a plain `*slog.Logger` and a `depfootprint_test.go` guard enforces the boundary.
 - **The error carries the exit code.** `WithExitCode(err, 3)` travels with the error,
   so the code that knows *why* something failed decides how the process exits, and
   `main` stays a one-liner.
 - **Hints are for humans.** A wrapped error says what broke; a hint says what to do
   about it. Both are rendered, with the hint kept out of the machine-facing message.
-- **Quiet on purpose.** Stack traces and details appear only when the logger has debug
-  enabled; `LevelFatalQuiet` exits with the attached code while logging at debug, for
-  expected terminations such as a SIGINT where an error line would be noise.
+- **The error carries how the program should end.** An `Outcome` states the exit code,
+  the log level, and whether to print usage — so an error can be terminal *and*
+  successful, which a closed switch over sentinels could never express.
+- **Nothing exits.** `Fatal` reports and *returns* the code it believes the process
+  should use; `main` owns termination, so no deferred cleanup is skipped by a library.
+- **Quiet on purpose.** Stack traces appear only when the logger has debug enabled, and
+  `Quietly()` demotes a fatal report to debug for expected terminations such as a SIGINT
+  where an error line would be noise.
 - **Bring your own usage printer.** Printing usage for a parent command goes through
   the `SetUsage(func() error)` seam — with Cobra that is `SetUsage(cmd.Usage)` — so
   this module never imports a CLI framework.
@@ -50,50 +55,53 @@ go get gitlab.com/phpboyscout/go/errorhandling
 package main
 
 import (
+	"context"
 	"log/slog"
 	"os"
 
-	"github.com/cockroachdb/errors"
-
 	"gitlab.com/phpboyscout/go/errorhandling"
+	"gitlab.com/phpboyscout/go/errors"
 )
 
 func main() {
 	handler := errorhandling.New(slog.Default(), nil)
 
 	if err := run(); err != nil {
-		handler.Fatal(err) // logs message + hint, exits with the attached code
+		// Logs the message, kind and hint as one structured record, and hands
+		// main the code to exit on.
+		os.Exit(handler.Fatal(context.Background(), err))
 	}
 }
 
 func run() error {
-	err := errors.New("config file not found")
-
-	return errorhandling.WithExitCode(
-		errorhandling.WithUserHint(err, "Run 'mytool init' to create one"),
-		3,
+	err := errors.WithHint(
+		errors.New("config file not found"),
+		"Run 'mytool init' to create one",
 	)
+
+	return errorhandling.WithExitCode(err, 3)
 }
 ```
 
 ## What's inside
 
-- **Reporting** — `ErrorHandler` (`Check` / `Fatal` / `Error` / `Warn`), `New`, and the
-  `WithExitFunc` option.
-- **Hints** — `WithUserHint`, `WithUserHintf`, `WrapWithHint`.
+- **Reporting** — `ErrorHandler` (`Fatal` / `Error` / `Warn`) and `New`.
+- **Report options** — `WithPrefix`, `Quietly`, `WithStackDepth`.
+- **Outcomes** — `Outcome`, `WithOutcome`, `OutcomeOf`.
 - **Exit codes** — `WithExitCode`, `ExitCode`, `ExitCodeUsage`.
-- **Levels** — `LevelFatal`, `LevelFatalQuiet`, `LevelError`, `LevelWarn`.
-- **Sentinels** — `ErrNotImplemented` (with `NewErrNotImplemented` for an issue link)
-  and `ErrRunSubCommand`, which triggers the usage printer.
+- **Sentinels** — `ErrNotImplemented` (with `NewErrNotImplemented` for an issue link),
+  `ErrRunSubCommand` and `ErrUnknownSubCommand`, which print usage, and
+  `ErrAssertionFailure` (with `NewAssertionFailure`).
 - **Help channels** — the `HelpConfig` interface; you supply the implementation.
 - **`mocks`** — published testify mocks of `ErrorHandler` and `HelpConfig`.
 
 ## What it does not do
 
-No signal handling, no panic recovery, no redaction, no crash reporting, no output
-writer of its own — reports go to the `*slog.Logger` you supply. Inside reporting, the
-sentinels discard anything attached to them, `errors.Join` loses hints, and an exit code
-does not survive being encoded across a process boundary. All of it is listed under
+No process exit, no signal handling, no panic recovery, no redaction, no crash
+reporting, no output writer of its own — reports go to the `*slog.Logger` you supply.
+Inside reporting, an outcome overrides the level and code you asked for, `Quietly()` is
+ignored by `Error` and `Warn`, and details are not debug-gated. All of it is listed
+under
 [Limitations](https://errorhandling.go.phpboyscout.uk/reference/limitations/).
 
 ## Documentation

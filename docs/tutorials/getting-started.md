@@ -10,7 +10,7 @@ afterwards; nothing is installed globally.
 
 ## Prerequisites
 
-- Go 1.26 or newer. The module's `go.mod` declares `go 1.26.5`, so an older toolchain
+- Go 1.26 or newer. The module's `go.mod` declares `go 1.26.6`, so an older toolchain
   will refuse to build it.
 - A terminal. No editor plugin, no Docker, nothing else.
 
@@ -19,12 +19,12 @@ afterwards; nothing is installed globally.
 ```bash
 mkdir errdemo && cd errdemo
 go mod init errdemo
-go get gitlab.com/phpboyscout/go/errorhandling github.com/cockroachdb/errors
+go get gitlab.com/phpboyscout/go/errorhandling gitlab.com/phpboyscout/go/errors
 ```
 
-You pull in `cockroachdb/errors` directly, alongside this module. That's intentional —
-this package is a reporting layer rather than a wrapper, so you'll use both APIs side
-by side.
+You pull in `go/errors` directly, alongside this module. That's intentional — this
+package is a reporting layer rather than a wrapper, so you'll use both APIs side by
+side. `go/errors` has no dependencies of its own.
 
 ## 2. Report an error
 
@@ -35,12 +35,12 @@ Create a handler and hand it a failure. `New` takes a `*slog.Logger` and an opti
 package main
 
 import (
+	"context"
 	"log/slog"
 	"os"
 
-	"github.com/cockroachdb/errors"
-
 	"gitlab.com/phpboyscout/go/errorhandling"
+	"gitlab.com/phpboyscout/go/errors"
 )
 
 func main() {
@@ -48,7 +48,7 @@ func main() {
 	handler := errorhandling.New(logger, nil)
 
 	if err := run(); err != nil {
-		handler.Fatal(err)
+		os.Exit(handler.Fatal(context.Background(), err))
 	}
 }
 
@@ -62,9 +62,18 @@ go run .
 ```
 
 ```
-time=2026-01-01T00:00:00.000Z level=ERROR msg="config file not found"
+time=2026-01-01T00:00:00.000Z level=ERROR msg="config file not found" err.msg="config file not found" err.kind=errors.basic
 exit status 1
 ```
+
+Two things to notice.
+
+**`Fatal` does not exit.** It reports, and returns the code it believes the process
+should use — `os.Exit` in `main` is what acts on it. That is why this module can be
+called from anywhere without swallowing your deferred cleanup.
+
+**The error arrives as a group**, not a flattened string: `err.msg` and `err.kind` are
+separate fields a log query can filter on. Everything you attach from here on joins it.
 
 Correct, but unkind: the user knows *what* happened and nothing about what to do.
 
@@ -78,7 +87,7 @@ the message stays short, the advice stays visible:
 
 ```go
 func run() error {
-	return errorhandling.WithUserHint(
+	return errors.WithHint(
 		errors.New("config file not found"),
 		"Run 'errdemo init' to create one",
 	)
@@ -90,7 +99,7 @@ go run .
 ```
 
 ```
-level=ERROR msg="config file not found" hints="Run 'errdemo init' to create one"
+level=ERROR msg="config file not found" err.msg="config file not found" err.kind=errors.basic err.hint="[Run 'errdemo init' to create one]"
 ```
 
 Hints are always shown when present — unlike stack traces, they are not debug-gated,
@@ -103,8 +112,10 @@ choose it, so attach it to the error and let it travel:
 
 ```go
 func run() error {
-	err := errors.New("config file not found")
-	err = errorhandling.WithUserHint(err, "Run 'errdemo init' to create one")
+	err := errors.WithHint(
+		errors.New("config file not found"),
+		"Run 'errdemo init' to create one",
+	)
 
 	return errorhandling.WithExitCode(err, 3)
 }
@@ -120,12 +131,13 @@ go build -o errdemo . && ./errdemo ; echo "exit=$?"
 ```
 
 ```
-level=ERROR msg="config file not found" hints="Run 'errdemo init' to create one"
+level=ERROR msg="config file not found" err.msg="config file not found" err.kind=errorhandling.exit_code err.hint="[Run 'errdemo init' to create one]"
 exit=3
 ```
 
 Nothing between `run` and `main` had to know about the code — `WithExitCode` is
-transparent to `errors.Is`/`errors.As` and survives further wrapping.
+transparent to `errors.Is`/`errors.As` and survives further wrapping. The hint is still
+there, and `err.kind` now names the outermost attachment.
 
 ## 5. Add context as the error bubbles up
 
@@ -141,15 +153,17 @@ func run() error {
 }
 
 func loadConfig() error {
-	err := errors.New("config file not found")
-	err = errorhandling.WithUserHint(err, "Run 'errdemo init' to create one")
+	err := errors.WithHint(
+		errors.New("config file not found"),
+		"Run 'errdemo init' to create one",
+	)
 
 	return errorhandling.WithExitCode(err, 3)
 }
 ```
 
 ```
-level=ERROR msg="startup failed: config file not found" hints="Run 'errdemo init' to create one"
+level=ERROR msg="startup failed: config file not found" err.msg="startup failed: config file not found" err.kind=errorhandling.exit_code err.hint="[Run 'errdemo init' to create one]"
 ```
 
 The hint and the exit code both survived the wrap — rebuild, check `$?`, and it is
@@ -170,21 +184,19 @@ Rebuild and the report gains a `stacktrace` field showing where the error was cr
 and each point it was wrapped:
 
 ```
-level=ERROR msg="startup failed: config file not found" stacktrace="(1) attached stack trace
-  -- stack trace:
-    main.run
-      /home/you/errdemo/main.go:25
-    [...repeated from below...]
-Wraps: (2) startup failed
-Wraps: (3)
-Wraps: (4) Run 'errdemo init' to create one
-Wraps: (5) attached stack trace
-  ..." hints="Run 'errdemo init' to create one"
+level=ERROR msg="startup failed: config file not found" err.msg="startup failed: config file not found" err.kind=errorhandling.exit_code err.hint="[Run 'errdemo init' to create one]" stacktrace="main.loadConfig
+\t/home/you/errdemo/main.go:31
+main.run
+\t/home/you/errdemo/main.go:22
+main.main
+\t/home/you/errdemo/main.go:16
+..."
 ```
 
-It is long, and it is meant to be — this is the debug view. Notice that the hint and
-the exit-code wrapper appear as layers in the chain, which is a quick way to check that
-something you attached really made it through.
+The stack lives outside the `err` group deliberately: it is large, and it is rarely what
+a log line is for. It is bounded to
+[twenty frames](../reference/api.md#defaultstackdepth) by default, and
+[`WithStackDepth`](../reference/api.md#withstackdepth) changes that per report.
 
 ## Where next
 
@@ -192,8 +204,8 @@ something you attached really made it through.
 - **[Control the exit code](../how-to/exit-codes.md)** — conventions and the fatal path.
 - **[Handle interrupts quietly](../how-to/handle-interrupts.md)** — Ctrl-C shouldn't look
   like a crash.
-- **[Report levels](../reference/levels.md)** — exactly what each level logs, and
-  whether it exits.
+- **[Report levels](../reference/levels.md)** — exactly what each method logs, and what
+  an outcome does to it.
 - **[Limitations](../reference/limitations.md)** — what the package deliberately does
   not do, worth reading before you build on it.
 - **[The reporting model](../explanation/reporting-model.md)** — why reporting happens at

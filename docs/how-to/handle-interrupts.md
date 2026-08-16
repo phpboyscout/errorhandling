@@ -7,8 +7,8 @@ like your tool broke when it did exactly what it was told.
 But the run must still **exit non-zero**, because that is how the shell, CI, and any
 supervisor learn the run did not complete.
 
-`LevelFatalQuiet` resolves the tension: **exit exactly like `LevelFatal`, but log at
-debug.**
+[`Quietly()`](../reference/api.md#quietly) resolves the tension: **report exactly like
+`Fatal`, but log at debug.**
 
 ## Report an interrupt
 
@@ -18,16 +18,20 @@ err := errorhandling.WithExitCode(
 	128+int(sig.(syscall.Signal)),
 )
 
-handler.Check(err, "", errorhandling.LevelFatalQuiet)
+os.Exit(handler.Fatal(ctx, err, errorhandling.Quietly()))
 ```
 
 The process exits `130` for SIGINT (`128+2`) or `143` for SIGTERM (`128+15`) — the
 convention shells and supervisors understand — while the notice stays out of the user's
 face. It is still there under debug, so anyone diagnosing a run sees it.
 
-The general rule: reach for `LevelFatalQuiet` whenever a termination is **expected and
+The general rule: reach for `Quietly()` whenever a termination is **expected and
 user-initiated**, and **the exit code is itself the signal** — an error line would add
 nothing.
+
+Note it is read on the `Fatal` path only: `Error(ctx, err, Quietly())` still logs at
+`ERROR`. And an error carrying an [`Outcome`](../reference/api.md#outcome) overrides it,
+so if you want a quiet interrupt, do not also give it an outcome that says otherwise.
 
 ## Wiring a signal watcher
 
@@ -75,25 +79,30 @@ artefact of the cancellation, not the reason the run ended. Prefer the signal:
 err := runCommandTree(ctx)
 
 if sig := receivedSignal(); sig != nil {
-	flush()                                    // see below — before any fatal call
-	handler.Check(interruptErr(sig), "", errorhandling.LevelFatalQuiet)
+	flush()                                    // see below — before you exit
 
-	return
+	return handler.Fatal(ctx, interruptErr(sig), errorhandling.Quietly())
 }
 
 if err != nil {
-	handler.Fatal(err)
+	return handler.Fatal(ctx, err)
 }
+
+return 0
 ```
 
-!!! danger "Flush before you exit, not in a defer"
-    Both the quiet and loud fatal paths exit the process, so **deferred cleanup in the
-    calling frames never runs.** This is the classic way a telemetry flush silently
-    stops happening the moment a real error occurs.
+Both branches return a code for `main` to act on, rather than ending the process where
+they stand.
 
-    Invoke pre-exit work **explicitly before** the fatal call, guarded by a `sync.Once`
-    so the normal paths can still `defer` it — and give it a **fresh, bounded context**,
-    never the one the interrupt just cancelled, or it aborts instantly.
+!!! danger "Flush before you exit, not in a defer"
+    `Fatal` returns rather than exiting, so deferred cleanup in the *calling* frames does
+    still run — but only up to whatever frame calls `os.Exit` with the code it returned.
+    Anything deferred above that never runs. This is the classic way a telemetry flush
+    silently stops happening the moment a real error occurs.
+
+    Invoke pre-exit work **explicitly before** you exit, guarded by a `sync.Once` so the
+    normal paths can still `defer` it — and give it a **fresh, bounded context**, never
+    the one the interrupt just cancelled, or it aborts instantly.
 
 ## Interactive prompts and Ctrl-C
 
@@ -110,3 +119,4 @@ supervisors — an external terminate should end the run, prompt or not.
 
 - [Control the exit code](exit-codes.md)
 - [The reporting model](../explanation/reporting-model.md#levels)
+- [Report levels](../reference/levels.md#quietly-only-applies-to-fatal)

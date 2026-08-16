@@ -1,27 +1,24 @@
 # Test error handling
 
 Error paths are the ones least exercised by hand, so they earn their tests. This guide
-covers the three things people trip over: not killing the test binary, asserting on
+covers the three things people trip over: asserting on the exit code, asserting on
 structure rather than formatted strings, and mocking the handler.
 
-## Never let Fatal kill your tests
+## Fatal is safe to call in a test
 
-`Fatal` calls the exit function, which is `os.Exit` by default — in a test, that takes
-the whole test binary with it. Inject a fake:
+Nothing in this module exits. `Fatal` reports and **returns** the code it believes the
+process should use, so a test asserts on a plain `int` and needs no injected seam:
 
 ```go
-var code int
-h := errorhandling.New(slog.New(slog.DiscardHandler), nil,
-	errorhandling.WithExitFunc(func(c int) { code = c }))
+h := errorhandling.New(slog.New(slog.DiscardHandler), nil)
 
-h.Fatal(errorhandling.WithExitCode(errors.New("boom"), 3))
+code := h.Fatal(t.Context(), errorhandling.WithExitCode(errors.New("boom"), 3))
 assert.Equal(t, 3, code)
 ```
 
-!!! warning "With a fake exit func, execution continues past Fatal"
-    Real `os.Exit` never returns; your fake does. So a test that calls `Fatal` keeps
-    running the following lines — including any code that assumed it had terminated.
-    Return or guard explicitly if that matters.
+The code an error *carries* and the code `Fatal` *returns* can differ — an
+[`Outcome`](../reference/api.md#outcome) overrides an attached code — so assert on the
+return value when the question is "what would the process do".
 
 ## Assert on hints, not on rendered text
 
@@ -29,10 +26,10 @@ Hints are structured data. Read them back rather than matching formatted output,
 is brittle:
 
 ```go
-err := errorhandling.WithUserHint(errors.New("token missing"),
+err := errors.WithHint(errors.New("token missing"),
 	"Set the GITHUB_TOKEN environment variable")
 
-assert.Contains(t, errors.FlattenHints(err), "GITHUB_TOKEN")
+assert.Contains(t, errors.Hints(err), "Set the GITHUB_TOKEN environment variable")
 ```
 
 The same applies to exit codes — `errorhandling.ExitCode(err)` — and to identity:
@@ -46,12 +43,12 @@ When the assertion really is about what got logged, point a slog handler at a bu
 var buf bytes.Buffer
 h := errorhandling.New(slog.New(slog.NewTextHandler(&buf, nil)), nil)
 
-h.Error(errors.New("something went wrong"))
+h.Error(t.Context(), errors.New("something went wrong"))
 assert.Contains(t, buf.String(), "something went wrong")
 ```
 
-To exercise the debug-gated output — stack traces and details — enable debug on the
-handler you pass in:
+To exercise the debug-gated output — the stack trace — enable debug on the handler you
+pass in:
 
 ```go
 logger := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
@@ -70,7 +67,7 @@ import ehmocks "gitlab.com/phpboyscout/go/errorhandling/mocks"
 
 func TestReportsFailure(t *testing.T) {
 	h := ehmocks.NewMockErrorHandler(t)
-	h.EXPECT().Error(mock.Anything).Once()
+	h.EXPECT().Error(mock.Anything, mock.Anything).Once()
 
 	runThing(h) // takes an errorhandling.ErrorHandler
 
@@ -92,7 +89,7 @@ err := loadConfig("/nonexistent.yaml")
 require.Error(t, err)
 assert.ErrorIs(t, err, ErrConfigMissing)                  // identity survives wrapping
 assert.Contains(t, err.Error(), "failed to read config")  // context was added
-assert.NotEmpty(t, fmt.Sprintf("%+v", err))               // a stack was captured
+assert.NotNil(t, errors.StackOf(err))                     // a stack was captured
 ```
 
 That last one is worth having somewhere: it's what catches a `fmt.Errorf` sneaking in,

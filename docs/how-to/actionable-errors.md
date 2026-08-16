@@ -13,7 +13,7 @@ embedded in a message makes the message long, unstable, and useless to match on.
 
 ```go
 // ✅ identity in the message, advice in the hint
-return errorhandling.WithUserHint(
+return errors.WithHint(
 	errors.New("config file not found"),
 	"Run 'mytool init' to create one",
 )
@@ -26,8 +26,8 @@ Good hints name a **concrete next action** — a command to run, an environment 
 to set, a setting to check:
 
 ```go
-errorhandling.WithUserHintf(err, "Set %s or run 'mytool init --token'.", "GITHUB_TOKEN")
-errorhandling.WrapWithHint(err, "failed to authenticate",
+errors.WithHintf(err, "Set %s or run 'mytool init --token'.", "GITHUB_TOKEN")
+errors.WithHint(errors.Wrap(err, "failed to authenticate"),
 	"Check that your GITHUB_TOKEN is valid and has the required scopes.")
 ```
 
@@ -36,12 +36,12 @@ deserve two different hints:
 
 ```go
 if err := sql.Open(driver, dsn); err != nil {
-	return errorhandling.WrapWithHint(err, "failed to connect to database",
+	return errors.WithHint(errors.Wrap(err, "failed to connect to database"),
 		"Check that the database server is running and the connection string is correct")
 }
 
 if err := conn.Ping(); err != nil {
-	return errorhandling.WrapWithHint(err, "database connection test failed",
+	return errors.WithHint(errors.Wrap(err, "database connection test failed"),
 		"The connection was established but the database is not responding — check server health")
 }
 ```
@@ -50,17 +50,17 @@ if err := conn.Ping(); err != nil {
 
 | Carrier | Audience | Shown |
 |---|---|---|
-| **Message** (`New`, `Wrap`) | matching code, operators | always |
-| **Hint** (`WithUserHint`, `errors.WithHint`) | **the end user — how to fix it** | **always, at every level** |
-| **Detail** (`errors.WithDetail`) | developers diagnosing | **debug only** |
-| **Safe detail** (`errors.WithSafeDetails`) | telemetry / crash reports, PII-free | never in normal output |
+| **Message** (`errors.New`, `errors.Wrap`) | matching code, operators | always |
+| **Hint** (`errors.WithHint`) | **the end user — how to fix it** | always, at every level |
+| **Detail** (`errors.WithDetail`) | developers diagnosing | always, at every level |
+| **Attribute** (`errors.WithAttrs`) | log queries and dashboards | always, as its own field |
 
 Plus the **stack trace**, captured automatically and rendered only in debug.
 
-The split that matters most: **hints are always visible, details are not.** Anything
-that would confuse an end user — a raw HTTP body, a driver-level code — belongs in a
-detail, never a hint. Anything the user must act on belongs in a hint, never a detail,
-because they'll never see it there.
+The split that matters is *audience*, not visibility: hints and details both reach the
+record. A detail is where a raw HTTP body or a driver-level code goes so it does not
+clutter the hint — **not** where a secret goes. Nothing here is redacted or debug-gated,
+so anything that must not reach a user must not be attached to the error at all.
 
 ## Creating errors: the ladder
 
@@ -68,11 +68,14 @@ because they'll never see it there.
 2. `errors.Newf("invalid port: %d", port)` — when the message needs values.
 3. `errors.Wrap(err, "context")` — adding context as an error travels up.
 4. `errors.WithStack(err)` — re-returning a sentinel and you only want the stack.
-5. `WithUserHint` / `WrapWithHint` — adding advice.
+5. `errors.WithHint(err, "…")` — adding advice.
+6. `errors.NewSentinel(kind, msg)` — **at package scope**. Plain `New` there captures
+   its stack at initialisation, which points at `runtime.doInit` rather than anywhere
+   the error was returned.
 
 !!! danger "Never `fmt.Errorf`"
     `fmt.Errorf` captures **no stack trace**, so a failure that reaches your logs has
-    no origin. Use `errors.Newf`/`errors.Wrap` from `cockroachdb/errors` instead —
+    no origin. Use `errors.Newf`/`errors.Wrap` from `go/errors` instead —
     same ergonomics, plus a stack. (The handler tolerates plain errors; you just get
     no trace for them.)
 
@@ -82,7 +85,8 @@ Declare the conditions callers need to distinguish as package-level values, then
 for the dynamic part. That keeps `errors.Is` working while the message stays specific:
 
 ```go
-var ErrInvalidPort = errors.New("invalid port: must be between 1 and 65535")
+var ErrInvalidPort = errors.NewSentinel(
+	"mytool.invalid_port", "invalid port: must be between 1 and 65535")
 
 func validatePort(port int) error {
 	if port < 1 || port > 65535 {
@@ -99,7 +103,7 @@ to attach the hint:
 
 ```go
 if errors.Is(err, ErrTokenExpired) {
-	return errorhandling.WithUserHint(err, "Run 'mytool init --github' to re-authenticate.")
+	return errors.WithHint(err, "Run 'mytool init --github' to re-authenticate.")
 }
 ```
 
@@ -121,19 +125,18 @@ if len(items) == 0 {
 }
 ```
 
-Assertion failures are reported as `Internal error (assertion failure)` — the message
-convention is to name the function, state the violated precondition, and say it's a
-bug. Don't add a hint of your own: nobody outside your team can act on it.
+The message convention is to name the function, state the violated precondition, and say
+it is a bug. Don't add a hint: nobody outside your team can act on it, and a hint that
+cannot be acted on trains people to ignore hints.
 
-You will still see a `hints` field on the report. `cockroachdb/errors` attaches its own
-generic text to every assertion failure ("You have encountered an unexpected error…
-please check the public issue tracker…"), and it is not configurable from here. That is
-the reason not to add a second hint — the user gets one already, and two competing
-pieces of advice are worse than one generic one.
+What identifies it in the log is the kind, `errorhandling.assertion_failure`, inside the
+[`err` group](../reference/log-fields.md#err) — so a query can count them without
+matching on message text. It is otherwise reported like any other error, at whatever
+level you asked for.
 
 ## Related
 
 - [The reporting model](../explanation/reporting-model.md)
-- [Why cockroachdb/errors](../explanation/why-cockroachdb-errors.md)
+- [Why go/errors](../explanation/why-go-errors.md)
 - [Control the exit code](exit-codes.md)
 - [Log fields](../reference/log-fields.md) — which of these carriers renders where

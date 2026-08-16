@@ -1,7 +1,10 @@
 # Exit codes
 
-The exit code a process ends with is decided in one place — the handler's fatal path —
-from information attached to the error. This page states exactly which code wins.
+The exit code is decided in one place — [`Fatal`](api.md#fatal) — from information
+attached to the error. This page states exactly which code wins.
+
+**`Fatal` returns the code; it does not exit.** Acting on it is `main`'s job. A library
+that called `os.Exit` would skip every deferred cleanup between itself and `main`.
 
 For how to *use* this, see [Control the exit code](../how-to/exit-codes.md).
 
@@ -9,17 +12,19 @@ For how to *use* this, see [Control the exit code](../how-to/exit-codes.md).
 
 Read top to bottom; the first row that matches decides.
 
-| Situation | Code used |
+| Situation | Code returned |
 |---|---|
-| `err` is nil | nothing happens — the process does not exit |
-| Level is not `fatal` or `fatal-quiet` | nothing happens — the process does not exit |
-| `err` is a [special error](levels.md#what-a-special-error-does-at-every-level) | **`2`** (`ExitCodeUsage`), *even if a code was attached* |
+| `err` is nil | `0`, and nothing is logged |
+| `err` carries an [`Outcome`](api.md#outcome) | the outcome's `Code`, *even if a code was attached* |
 | A code was attached with [`WithExitCode`](api.md#withexitcode) | that code — the outermost, if several |
-| Anything else | **`1`** |
+| Anything else | `1` |
 
-The third row is the one that surprises people: on the special-error path the handler
-exits with `ExitCodeUsage` directly, without consulting the error. `Fatal(WithExitCode(
-ErrRunSubCommand, 64))` exits `2`, not `64`.
+The second row is the one that surprises people. An outcome is the more specific
+statement about how the error ends, so it beats an attached code:
+`Fatal(ctx, WithExitCode(ErrRunSubCommand, 64))` returns `2`, not `64`.
+
+[`Error`](api.md#error) and [`Warn`](api.md#warn) return nothing at all — they are not
+terminal, so there is no code to resolve.
 
 ## ExitCodeUsage
 
@@ -27,22 +32,27 @@ ErrRunSubCommand, 64))` exits `2`, not `64`.
 const ExitCodeUsage = 2
 ```
 
-The code used when a fatal-level report turns out to be a usage problem — a parent
-command invoked with no subcommand, or a command that is not implemented yet. `2` is
-the conventional Unix "command misuse" status, distinct from the general failure code
-`1`, so a calling script can tell an invalid invocation from a run that started
-properly and then failed.
+The code carried by this module's three usage sentinels — a parent invoked with no
+subcommand, a parent given a verb it does not have, and a command that is not
+implemented yet. `2` is the conventional Unix "command misuse" status, distinct from the
+general failure code `1`, so a calling script can tell an invalid invocation from a run
+that started properly and then failed.
 
-It is a constant, not a default: there is no option to change it.
+It is a constant, not a default: there is no option to change it. What *is* adjustable is
+which errors carry it — [`WithOutcome`](api.md#withoutcome) puts it on an error of your
+own.
 
 ## Codes this package assigns on its own
 
-Only two, and neither can be configured:
-
 | Code | When |
 |---|---|
-| `1` | A fatal error with nothing attached |
-| `2` | A fatal [special error](levels.md#what-a-special-error-does-at-every-level) |
+| `0` | `Fatal(ctx, nil)`, or an outcome that is terminal and successful |
+| `1` | A fatal error with no outcome and no attached code |
+| `2` | An error carrying a `ExitCodeUsage` outcome |
+
+An outcome code of `0` is legitimate and meaningful: an error can be terminal *and*
+successful. A completed self-update is exactly that — the run must stop, and nothing went
+wrong.
 
 Everything else is a code you attached. There is no built-in taxonomy, no mapping from
 error kind to code, and no validation — see
@@ -53,22 +63,19 @@ worth honouring.
 
 - **The range.** `WithExitCode(err, 300)` is accepted; the operating system takes the
   low 8 bits, so the shell reports `44`. Keep codes within 0–255.
-- **Zero.** `WithExitCode(err, 0)` is accepted and exits `0`, reporting success from a
+- **Zero.** `WithExitCode(err, 0)` is accepted and returns `0`, reporting success from a
   path that had an error. Nothing warns about this.
 - **Negative values.** Also accepted, and also truncated by the OS.
 
 ## When the attached code does not survive
 
 `WithExitCode` wraps the error in an unexported type that `errors.Is`, `errors.As` and
-`errors.Join` all see through. Two things lose it:
+`errors.Join` all see through — [`ExitCode`](api.md#exitcode) finds a code through a
+join.
 
-- **Encoding and decoding across a process boundary.** `cockroachdb/errors` can
-  serialise an error and rebuild it elsewhere, but the exit-code wrapper is not a
-  registered type, so a round trip through `errors.EncodeError`/`errors.DecodeError`
-  comes back reporting `1`.
-- **Rebuilding the error from its message.** Anything that reconstructs an error from
-  `err.Error()` — a retry layer, an RPC boundary that only carries strings — drops the
-  wrapper along with the hints and the stack.
+What loses it is **rebuilding the error from its message**: anything that reconstructs an
+error from `err.Error()` — a retry layer, an RPC boundary that carries only strings —
+drops the wrapper along with the hints and the stack.
 
 Attach the code at the point the error reaches the process that will exit, if it has to
 cross a boundary in between.
@@ -81,13 +88,15 @@ errorhandling.ExitCode(errors.New("boom"))                     // 1
 errorhandling.ExitCode(errorhandling.WithExitCode(err, 130))   // 130
 ```
 
-To assert on the code the *handler* would use, inject the exit function rather than
-calling `ExitCode` — the special-error rule above lives in the handler, not in
-`ExitCode`, so the two can legitimately disagree. See
-[Test error handling](../how-to/test-error-handling.md#never-let-fatal-kill-your-tests).
+`ExitCode` reports the *attached* code and knows nothing about outcomes, so it and
+`Fatal` can legitimately disagree — `ExitCode(ErrRunSubCommand)` is `1` while
+`Fatal(ctx, ErrRunSubCommand)` returns `2`. To assert on what the process would use,
+assert on `Fatal`'s return value. It is a plain `int` and nothing exits, so no injection
+is needed. See
+[Test error handling](../how-to/test-error-handling.md).
 
 ## Related
 
-- [Report levels](levels.md) — which levels exit at all
+- [Report levels](levels.md) — how loudly the same error is reported
 - [Control the exit code](../how-to/exit-codes.md) — the guide
 - [Handle interrupts quietly](../how-to/handle-interrupts.md) — the `128+signum` convention

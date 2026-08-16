@@ -13,7 +13,7 @@ nav = [
   ] },
   { Explanation = [
     { "The reporting model" = "explanation/reporting-model.md" },
-    { "Why cockroachdb/errors" = "explanation/why-cockroachdb-errors.md" },
+    { "Why go/errors" = "explanation/why-go-errors.md" },
   ] },
   { Reference = [
     { Overview = "reference/index.md" },
