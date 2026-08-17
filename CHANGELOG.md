@@ -1,5 +1,20 @@
 # Changelog
 
+## [v0.4.0](https://gitlab.com/phpboyscout/go/errorhandling/-/releases/v0.4.0)
+
+[Compare to previous version](https://gitlab.com/phpboyscout/go/errorhandling/-/compare/v0.3.0...v0.4.0)
+
+### Features
+
+- **errors**: add ErrUnknownSubCommand for a mistyped subcommand ([832cca2](https://gitlab.com/phpboyscout/go/errorhandling/-/commit/832cca2ba0d5d168cdebf620b6c0ac68af29589e))
+
+### Bug Fixes
+
+- **reporting**: keep the error structured under our own wrappers ([9168455](https://gitlab.com/phpboyscout/go/errorhandling/-/commit/9168455a743bf22a171a5a50af5ffdeeb982b71d))
+- **mocks**: regenerate MockErrorHandler against the current interface ([8299dd9](https://gitlab.com/phpboyscout/go/errorhandling/-/commit/8299dd9c4f3af8184ce0271ec32fec798ffe11f4))
+- **deps**: require go 1.26.6 for the stdlib advisories ([288f740](https://gitlab.com/phpboyscout/go/errorhandling/-/commit/288f74081c9d154e19eee5726a38078321263118))
+- **ci**: bump the cicd components to v0.36.0 for Go 1.26.6 ([8fc5ef6](https://gitlab.com/phpboyscout/go/errorhandling/-/commit/8fc5ef6cfb1d35ef61aec5953ab15779e15150c5))
+
 ## [v0.3.0](https://gitlab.com/phpboyscout/go/errorhandling/-/releases/v0.3.0)
 
 [Compare to previous version](https://gitlab.com/phpboyscout/go/errorhandling/-/compare/v0.2.0...v0.3.0)
