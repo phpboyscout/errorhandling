@@ -265,6 +265,25 @@ func NewErrNotImplemented(issueURL string) error {
 	return errors.WithAttrs(err, slog.String("issue_url", issueURL))
 }
 
+// UnknownSubCommand reports a parent command given a verb it does not have,
+// naming the verb and the command that rejected it.
+//
+// It exists so the message and the sentinel do not drift between CLIs. The cobra
+// glue that calls it cannot live here — this module deliberately imports no CLI
+// framework, and a module holding eight lines of glue would not earn its keep —
+// but the half worth sharing is the wording and the identity, not the closure:
+//
+//	RunE: func(cmd *cobra.Command, args []string) error {
+//		if len(args) > 0 {
+//			return errorhandling.UnknownSubCommand(args[0], cmd.CommandPath())
+//		}
+//
+//		return cmd.Usage()
+//	}
+func UnknownSubCommand(verb, path string) error {
+	return errors.Wrapf(ErrUnknownSubCommand, "unknown command %q for %q", verb, path)
+}
+
 // NewAssertionFailure returns an error denoting a bug in the program.
 func NewAssertionFailure(format string, args ...any) error {
 	return errors.Wrapf(ErrAssertionFailure, format, args...)

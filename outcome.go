@@ -59,7 +59,13 @@ type outcomeError struct {
 func (e *outcomeError) Error() string     { return e.cause.Error() }
 func (e *outcomeError) Unwrap() error     { return e.cause }
 func (e *outcomeError) ErrorKind() string { return OutcomeKind }
-func (e *outcomeError) ErrorPayload() any { return e.outcome }
+
+// StructuralKind marks this wrapper an annotation rather than an identity, so
+// errors.KindOf looks past it to what the error IS. An outcome says how the
+// program should END; reporting it as the kind put this module's plumbing in the
+// field a query filters on.
+func (e *outcomeError) StructuralKind() bool { return true }
+func (e *outcomeError) ErrorPayload() any    { return e.outcome }
 
 // LogValue keeps the error structured when an outcome is the outermost
 // attachment — which it is for every sentinel this module ships.

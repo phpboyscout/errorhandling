@@ -36,6 +36,7 @@ The package surface is deliberately small. This is all of it, as of v0.4.0.
 | [`Outcome`](api.md#outcome) | struct | How a terminal error ends: code, level, message, usage |
 | [`WithOutcome`](api.md#withoutcome) | func | Attach an outcome to an error |
 | [`OutcomeOf`](api.md#outcomeof) | func | Read the outermost outcome back |
+| [`UnknownSubCommand`](api.md#unknownsubcommand) | func | Wrap the sentinel with the offending verb |
 | [`OutcomeKind`](api.md#outcomekind) | const | `"errorhandling.outcome"` |
 | [`WithExitCode`](api.md#withexitcode) | func | Attach a process exit code to an error |
 | [`ExitCode`](api.md#exitcode) | func | Read the attached exit code back |

@@ -35,7 +35,11 @@ err.detail = ["dial tcp: no such host"]   every detail attached
 err.host   = "codeberg.org"               any attribute from errors.WithAttrs
 ```
 
-`kind` is what a query filters on. It is why this module no longer emits a second,
+`kind` is what a query filters on, and it reports what the error **is** rather than
+what was attached to it: this module's outcome and exit-code wrappers declare
+themselves structural, so `errorhandling.run_subcommand` survives them.
+
+It is also why this module no longer emits a second,
 fixed line to say "this was an assertion failure": the record already says so, in a
 field, without a string prefix anyone has to match.
 

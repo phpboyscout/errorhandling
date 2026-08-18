@@ -237,9 +237,19 @@ outcome, which leaves the level and code to the caller.
 const OutcomeKind = "errorhandling.outcome"
 ```
 
-Identifies an attached outcome to anything reading the error's kind. Note that it is the
-*wrapper's* kind: `errors.KindOf(ErrRunSubCommand)` reports `errorhandling.outcome`
-rather than the sentinel's own kind.
+Identifies an attached outcome to anything reading the wrapper directly.
+
+It does **not** appear in [`errors.KindOf`](https://errors.go.phpboyscout.uk/reference/readers/#kindof).
+The wrapper declares itself structural — an annotation rather than an identity —
+so `KindOf` looks past it:
+
+```go
+errors.KindOf(ErrRunSubCommand)                       // "errorhandling.run_subcommand"
+errors.KindOf(WithExitCode(ErrNotFound, 3))           // the sentinel's own kind
+```
+
+Before v0.5.0 it reported `errorhandling.outcome` for all three sentinels this
+module ships — the plumbing, on exactly the errors most likely to be queried.
 
 ## Exit codes
 
@@ -292,7 +302,9 @@ sentinels. See [Exit codes](exit-codes.md#exitcodeusage).
 const ExitCodeKind = "errorhandling.exit_code"
 ```
 
-Identifies an attached exit code to anything reading the error's kind.
+Identifies an attached exit code to anything reading the wrapper directly. Like
+[`OutcomeKind`](#outcomekind) it is structural, so it does not mask the error's
+identity in `errors.KindOf`.
 
 ## Sentinels
 
@@ -369,6 +381,35 @@ errors.Wrapf(errorhandling.ErrUnknownSubCommand,
 
 which reports `unknown command "bogus" for "tool alpha": unknown subcommand`, prints
 usage, and returns `2`.
+
+### UnknownSubCommand
+
+```go
+func UnknownSubCommand(verb, path string) error
+```
+
+Wraps [`ErrUnknownSubCommand`](#errunknownsubcommand) with the offending verb and
+the command that rejected it:
+
+```go
+errorhandling.UnknownSubCommand("bogus", "tool alpha")
+// unknown command "bogus" for "tool alpha": unknown subcommand
+```
+
+It exists so the wording and the sentinel do not drift between CLIs. The cobra
+glue that calls it deliberately lives elsewhere — this module imports no CLI
+framework, and a module holding eight lines of glue would not earn its keep — so
+what is shared is the message and the identity, not the closure:
+
+```go
+RunE: func(cmd *cobra.Command, args []string) error {
+	if len(args) > 0 {
+		return errorhandling.UnknownSubCommand(args[0], cmd.CommandPath())
+	}
+
+	return cmd.Usage()
+}
+```
 
 ### ErrAssertionFailure
 

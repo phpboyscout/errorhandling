@@ -30,6 +30,10 @@ const ExitCodeKind = "errorhandling.exit_code"
 
 func (e *exitCodeError) ErrorKind() string { return ExitCodeKind }
 
+// StructuralKind marks this wrapper an annotation rather than an identity — an
+// attached exit code says how the program should end, not what went wrong.
+func (e *exitCodeError) StructuralKind() bool { return true }
+
 // ErrorPayload exposes the code, so it reaches a log record and a span rather
 // than being readable only by this module's own errors.As.
 func (e *exitCodeError) ErrorPayload() any { return e.code }

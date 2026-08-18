@@ -169,3 +169,66 @@ func TestNoOutcomeLeavesTheCallerInCharge(t *testing.T) {
 	assert.Equal(t, 1, h.Fatal(context.Background(), errors.New("plain")),
 		"an error with no outcome and no code falls back to 1")
 }
+
+// An outcome says how an error ENDS, not what it is. Attaching one used to
+// replace the error's identity in every log record and query — KindOf reported
+// errorhandling.outcome for all three sentinels this module ships, which is the
+// plumbing, on exactly the errors most likely to be queried.
+//
+// go/errors gained StructuralKinder for this: a wrapper can say its kind is an
+// annotation and KindOf looks past it.
+func TestAttachmentsDoNotMaskTheErrorsIdentity(t *testing.T) {
+	t.Parallel()
+
+	for name, err := range map[string]error{
+		"outcome":   errorhandling.ErrRunSubCommand,
+		"unknown":   errorhandling.ErrUnknownSubCommand,
+		"not impl":  errorhandling.ErrNotImplemented,
+		"exit code": errorhandling.WithExitCode(errors.NewSentinel("app.boom", "boom"), 3),
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			kind := errors.KindOf(err)
+
+			assert.NotEqual(t, errorhandling.OutcomeKind, kind,
+				"an outcome is how the error ends, not what it is")
+			assert.NotEqual(t, errorhandling.ExitCodeKind, kind,
+				"and neither is an exit code")
+			assert.NotEmpty(t, kind, "the identity beneath is still reported")
+		})
+	}
+}
+
+func TestTheSentinelsReportTheirOwnKinds(t *testing.T) {
+	t.Parallel()
+
+	for kind, err := range map[string]error{
+		"errorhandling.run_subcommand":     errorhandling.ErrRunSubCommand,
+		"errorhandling.unknown_subcommand": errorhandling.ErrUnknownSubCommand,
+		"errorhandling.not_implemented":    errorhandling.ErrNotImplemented,
+		"errorhandling.assertion_failure":  errorhandling.ErrAssertionFailure,
+	} {
+		assert.Equal(t, kind, errors.KindOf(err),
+			"this is what a log query filters on")
+	}
+}
+
+// UnknownSubCommand is the shared half of reporting a mistyped verb. The cobra
+// closure that calls it cannot be shared — this module bans cobra, and a module
+// for eight lines of glue would not earn its keep — but the message and the
+// sentinel must not drift between go-tool-base's generated groups and the
+// standalone CLIs that build their own.
+func TestUnknownSubCommandCarriesTheVerbAndTheSentinel(t *testing.T) {
+	t.Parallel()
+
+	err := errorhandling.UnknownSubCommand("bogus", "tool alpha")
+
+	require.ErrorIs(t, err, errorhandling.ErrUnknownSubCommand)
+	assert.Equal(t, `unknown command "bogus" for "tool alpha": unknown subcommand`, err.Error())
+
+	outcome, ok := errorhandling.OutcomeOf(err)
+	require.True(t, ok)
+	assert.Equal(t, errorhandling.ExitCodeUsage, outcome.Code)
+	assert.True(t, outcome.Usage)
+}
