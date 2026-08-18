@@ -1,5 +1,17 @@
 # Changelog
 
+## [v0.5.0](https://gitlab.com/phpboyscout/go/errorhandling/-/releases/v0.5.0)
+
+[Compare to previous version](https://gitlab.com/phpboyscout/go/errorhandling/-/compare/v0.4.0...v0.5.0)
+
+### Features
+
+- **errors**: stop masking an error's kind, and share the unknown-verb wording ([d859411](https://gitlab.com/phpboyscout/go/errorhandling/-/commit/d859411b7d787369e5c957a6a36ed4e86fc6e097))
+
+### Bug Fixes
+
+- **deps**: update module github.com/stretchr/testify to v1.12.0 ([ea4abc8](https://gitlab.com/phpboyscout/go/errorhandling/-/commit/ea4abc8ff05a16c212f072737f2954905af5b5f5))
+
 ## [v0.4.0](https://gitlab.com/phpboyscout/go/errorhandling/-/releases/v0.4.0)
 
 [Compare to previous version](https://gitlab.com/phpboyscout/go/errorhandling/-/compare/v0.3.0...v0.4.0)
