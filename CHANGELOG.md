@@ -1,5 +1,13 @@
 # Changelog
 
+## [v0.5.1](https://gitlab.com/phpboyscout/go/errorhandling/-/releases/v0.5.1)
+
+[Compare to previous version](https://gitlab.com/phpboyscout/go/errorhandling/-/compare/v0.5.0...v0.5.1)
+
+### Bug Fixes
+
+- **deps**: update module github.com/stretchr/testify to v1.12.1 ([17b4881](https://gitlab.com/phpboyscout/go/errorhandling/-/commit/17b4881bb0662103e75f470c8c8a9af5aaefdd92))
+
 ## [v0.5.0](https://gitlab.com/phpboyscout/go/errorhandling/-/releases/v0.5.0)
 
 [Compare to previous version](https://gitlab.com/phpboyscout/go/errorhandling/-/compare/v0.4.0...v0.5.0)
