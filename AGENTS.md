@@ -70,9 +70,10 @@ plumbing becomes the `kind` a log query filters on instead of what the error is.
 were fixed, in v0.4.0 and v0.5.0, so copy `exitcode.go` or `outcome.go`.
 
 **Reaching for another module fails a test that does not look like a dependency
-check.** `depfootprint_test.go` runs `go list -deps` and rejects Cobra, pflag,
-viper, charmbracelet, OpenTelemetry and the cloud SDKs by prefix, so the toolkit
-reflex inverts here. The only dependency outside tests is `go/errors`, which is
+check.** `depfootprint_test.go` runs `go list -deps .` on the root package and
+rejects Cobra, pflag, viper, charmbracelet, OpenTelemetry and the cloud SDKs by
+import path, so the toolkit reflex inverts here. `mocks/` is opt-in and not
+scanned. The root package's only dependency is `go/errors`, which is
 stdlib-only, and the design leans on that: `SetUsage(func() error)` and
 `HelpConfig` exist to keep a CLI framework and a support channel on the caller's
 side.
