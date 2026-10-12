@@ -48,15 +48,17 @@ asked for.
 
 ## Where it has got to
 
-v0.5.0, pre-1.0, six tags since extraction from go-tool-base. Eight modules in
+v0.5.1, pre-1.0, seven tags since extraction from go-tool-base. Eight modules in
 the group require it directly and none pick it up transitively, so every
 consumer is a deliberate one: go-tool-base, `go/signing-cli`, keryx, krites,
 phpbotscout, scoutdm, sigillum and skillup, all on v0.5.0 bar phpbotscout on
 v0.3.0. The `ErrorHandler` interface, the exit-code helpers and the `HelpConfig`
 seam are settled and safe to build on; `Outcome` is the newest surface, added to
 replace a closed switch over three sentinels no consumer could extend. Releases
-go through releaser-pleaser: a merged `feat` or `fix` updates a Release MR, and
-merging that MR cuts the tag.
+go through colophon: a merged `feat`, `fix`, `perf` or `refactor` updates the
+Release MR, and merging that MR cuts the tag. Release notes go in a
+`Release-Note:` trailer on the commit, since colophon rewrites the MR's
+description on every run.
 
 ## The traps
 
@@ -117,8 +119,10 @@ against a handler built as a struct literal with its own capture logger.
 ## House rules
 
 - Linear history. Rebase and fast-forward; never squash-merge from the UI.
-- Conventional Commits, and the type decides whether a release is cut. Only
-  `feat` and `fix` release. A change that repoints or removes a public interface
-  is `feat`, not `refactor`, or it lands and never ships.
+- Conventional Commits, and the type decides whether a release is cut. `feat`
+  cuts a minor; `fix`, `perf` and `refactor` cut a patch; nothing else releases.
+  A change that repoints or removes a public interface is `feat`, not
+  `refactor`, or it ships as a patch, and the break is described in a
+  `Release-Note:` trailer on that commit before it merges.
 - No AI attribution in anything published, and never at-mention anyone.
 - Never cut a release yourself. That is the maintainer's call, every time.
