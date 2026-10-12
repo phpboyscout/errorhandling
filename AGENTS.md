@@ -48,12 +48,13 @@ asked for.
 
 ## Where it has got to
 
-v0.5.1, pre-1.0, seven tags since extraction from go-tool-base. Eight modules in
-the group require it directly and none pick it up transitively, so every
-consumer is a deliberate one: go-tool-base, `go/signing-cli`, keryx, krites,
-phpbotscout, scoutdm, sigillum and skillup, all on v0.5.0 bar phpbotscout on
-v0.3.0. The `ErrorHandler` interface, the exit-code helpers and the `HelpConfig`
-seam are settled and safe to build on; `Outcome` is the newest surface, added to
+Pre-1.0 since extraction from go-tool-base; the
+[tags page](https://gitlab.com/phpboyscout/go/errorhandling/-/tags) has the
+current version. Every module in the group that uses it requires it directly and
+none pick it up transitively, so every consumer is a deliberate one: go-tool-base
+and the CLI tools around it, such as keryx, krites, sigillum and colophon. The
+`ErrorHandler` interface, the exit-code helpers and the `HelpConfig` seam are
+settled and safe to build on; `Outcome` is the newest surface, added to
 replace a closed switch over three sentinels no consumer could extend. Releases
 go through colophon: a merged `feat`, `fix`, `perf` or `refactor` updates the
 Release MR, and merging that MR cuts the tag. Release notes go in a
