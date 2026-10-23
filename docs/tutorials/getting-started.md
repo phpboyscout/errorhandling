@@ -5,13 +5,13 @@ bare error, then one with a hint, then one that controls its own exit code. By t
 you'll have seen the whole shape of the package and have something you can copy into a
 real tool.
 
-Allow about fifteen minutes. Everything happens in a scratch directory you can delete
-afterwards; nothing is installed globally.
+Everything happens in a scratch directory you can delete afterwards; nothing is
+installed globally.
 
 ## Prerequisites
 
-- Go 1.26 or newer. The module's `go.mod` declares `go 1.26.6`, so an older toolchain
-  will refuse to build it.
+- Go, at least the version on the `go` line of this module's `go.mod`. An older
+  toolchain will refuse to build it.
 - A terminal. No editor plugin, no Docker, nothing else.
 
 ## 1. Create a module
@@ -22,7 +22,7 @@ go mod init errdemo
 go get gitlab.com/phpboyscout/go/errorhandling gitlab.com/phpboyscout/go/errors
 ```
 
-You pull in `go/errors` directly, alongside this module. That's intentional — this
+You pull in `go/errors` directly, alongside this module. That's intentional: this
 package is a reporting layer rather than a wrapper, so you'll use both APIs side by
 side. `go/errors` has no dependencies of its own.
 
@@ -69,7 +69,7 @@ exit status 1
 Two things to notice.
 
 **`Fatal` does not exit.** It reports, and returns the code it believes the process
-should use — `os.Exit` in `main` is what acts on it. That is why this module can be
+should use. `os.Exit` in `main` is what acts on it. That is why this module can be
 called from anywhere without swallowing your deferred cleanup.
 
 **The error arrives as a group**, not a flattened string: `err.msg` and `err.kind` are
@@ -82,7 +82,7 @@ because `slog`'s text handler always emits it.
 
 ## 3. Add a hint so the user knows what to do
 
-The message says what broke; a **hint** says what to do about it. Keep them separate —
+The message says what broke; a **hint** says what to do about it. Keep them separate:
 the message stays short, the advice stays visible:
 
 ```go
@@ -102,7 +102,7 @@ go run .
 level=ERROR msg="config file not found" err.msg="config file not found" err.kind=errors.basic err.hint="[Run 'errdemo init' to create one]"
 ```
 
-Hints are always shown when present — unlike stack traces, they are not debug-gated,
+Hints are always shown when present. Unlike stack traces they are not debug-gated,
 because advice is useless if the user can't see it.
 
 ## 4. Control the exit code
@@ -131,13 +131,14 @@ go build -o errdemo . && ./errdemo ; echo "exit=$?"
 ```
 
 ```
-level=ERROR msg="config file not found" err.msg="config file not found" err.kind=errorhandling.exit_code err.hint="[Run 'errdemo init' to create one]"
+level=ERROR msg="config file not found" err.msg="config file not found" err.kind=errors.basic err.hint="[Run 'errdemo init' to create one]"
 exit=3
 ```
 
-Nothing between `run` and `main` had to know about the code — `WithExitCode` is
+Nothing between `run` and `main` had to know about the code: `WithExitCode` is
 transparent to `errors.Is`/`errors.As` and survives further wrapping. The hint is still
-there, and `err.kind` now names the outermost attachment.
+there, and `err.kind` is still `errors.basic`, because the exit code is an annotation
+on the error and does not change what the error is.
 
 ## 5. Add context as the error bubbles up
 
@@ -163,10 +164,10 @@ func loadConfig() error {
 ```
 
 ```
-level=ERROR msg="startup failed: config file not found" err.msg="startup failed: config file not found" err.kind=errorhandling.exit_code err.hint="[Run 'errdemo init' to create one]"
+level=ERROR msg="startup failed: config file not found" err.msg="startup failed: config file not found" err.kind=errors.basic err.hint="[Run 'errdemo init' to create one]"
 ```
 
-The hint and the exit code both survived the wrap — rebuild, check `$?`, and it is
+The hint and the exit code both survived the wrap. Rebuild, check `$?`, and it is
 still `3`.
 
 ## 6. See the stack trace
@@ -180,11 +181,11 @@ logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
 }))
 ```
 
-Rebuild and the report gains a `stacktrace` field showing where the error was created
-and each point it was wrapped:
+Rebuild and the report gains a `stacktrace` field showing the call path to where the
+error was created:
 
 ```
-level=ERROR msg="startup failed: config file not found" err.msg="startup failed: config file not found" err.kind=errorhandling.exit_code err.hint="[Run 'errdemo init' to create one]" stacktrace="main.loadConfig
+level=ERROR msg="startup failed: config file not found" err.msg="startup failed: config file not found" err.kind=errors.basic err.hint="[Run 'errdemo init' to create one]" stacktrace="main.loadConfig
 \t/home/you/errdemo/main.go:31
 main.run
 \t/home/you/errdemo/main.go:22
@@ -200,13 +201,13 @@ a log line is for. It is bounded to
 
 ## Where next
 
-- **[Write actionable errors](../how-to/actionable-errors.md)** — what makes a hint good.
-- **[Control the exit code](../how-to/exit-codes.md)** — conventions and the fatal path.
-- **[Handle interrupts quietly](../how-to/handle-interrupts.md)** — Ctrl-C shouldn't look
+- **[Write actionable errors](../how-to/actionable-errors.md)**: what makes a hint good.
+- **[Control the exit code](../how-to/exit-codes.md)**: conventions and the fatal path.
+- **[Handle interrupts quietly](../how-to/handle-interrupts.md)**: Ctrl-C shouldn't look
   like a crash.
-- **[Report levels](../reference/levels.md)** — exactly what each method logs, and what
+- **[Report levels](../reference/levels.md)**: exactly what each method logs, and what
   an outcome does to it.
-- **[Limitations](../reference/limitations.md)** — what the package deliberately does
-  not do, worth reading before you build on it.
-- **[The reporting model](../explanation/reporting-model.md)** — why reporting happens at
+- **[Limitations](../reference/limitations.md)**: what the package deliberately does
+  not do. Worth reading before you build on it.
+- **[The reporting model](../explanation/reporting-model.md)**: why reporting happens at
   the top, and what's rendered when.
