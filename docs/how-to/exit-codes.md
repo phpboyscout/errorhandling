@@ -1,7 +1,7 @@
 # Control the exit code
 
 Scripts, CI jobs, and supervisors branch on exit codes. The code that *knows why* a run
-failed is usually deep in your program, but the process exits at the top — so attach
+failed is usually deep in your program, but the process exits at the top, so attach
 the code to the error and let it travel.
 
 ## Attach a code
@@ -31,12 +31,12 @@ errorhandling.ExitCode(err)        // still 3
 ## Read it back
 
 ```go
-errorhandling.ExitCode(nil)                 // 0 — no error, no failure
-errorhandling.ExitCode(errors.New("boom"))  // 1 — an error with nothing attached
+errorhandling.ExitCode(nil)                 // 0: no error, no failure
+errorhandling.ExitCode(errors.New("boom"))  // 1: an error with nothing attached
 errorhandling.ExitCode(coded)               // whatever was attached
 ```
 
-`WithExitCode(nil, 3)` returns `nil` — attaching a code to "no error" cannot invent a
+`WithExitCode(nil, 3)` returns `nil`, because attaching a code to "no error" cannot invent a
 failure.
 
 If a code is attached more than once, the **outermost wins**, matching `errors.As`
@@ -44,23 +44,23 @@ traversal order. So an outer layer can deliberately override an inner decision.
 
 ## Conventional codes
 
-There is no enforced taxonomy — pick what suits your tool — but these conventions are
+There is no enforced taxonomy, so pick what suits your tool, but these conventions are
 worth honouring because other software already understands them:
 
 | Code | Meaning |
 |---|---|
 | `0` | success |
-| `1` | general failure — the default when nothing is attached |
+| `1` | general failure; the default when nothing is attached |
 | `2` | conventionally, usage/CLI misuse |
-| `128+signum` | terminated by a signal — `130` for SIGINT (Ctrl-C), `143` for SIGTERM |
+| `128+signum` | terminated by a signal: `130` for SIGINT (Ctrl-C), `143` for SIGTERM |
 
 The `128+signum` convention is what shells, CI runners, and supervisors expect from a
 signalled process; see [handling interrupts](handle-interrupts.md).
 
 ## An outcome states the code, and wins
 
-Some errors know how the program should end. This module's usage sentinels —
-`ErrRunSubCommand`, `ErrUnknownSubCommand`, `ErrNotImplemented` — carry an
+Some errors know how the program should end. This module's usage sentinels,
+`ErrRunSubCommand`, `ErrUnknownSubCommand` and `ErrNotImplemented`, carry an
 [`Outcome`](../reference/api.md#outcome) saying "warn, print usage, exit `2`":
 
 ```go
@@ -68,7 +68,7 @@ code := handler.Fatal(ctx, errorhandling.ErrRunSubCommand) // prints usage, code
 ```
 
 This lets a calling script tell an *invalid invocation* apart from an ordinary runtime
-failure, and matches what CLI frameworks such as Cobra do in the same situation.
+failure.
 
 An outcome beats an attached code: `Fatal(ctx, WithExitCode(ErrRunSubCommand, 64))`
 returns `2`, not `64`, because the outcome is the more specific statement about how this
@@ -87,7 +87,7 @@ The full resolution order is in
 ## Why not just call os.Exit?
 
 Because `os.Exit` **skips every pending `defer`**. An exit buried in your call tree
-loses buffered writes, leaves temp files behind, and closes connections uncleanly — and
+loses buffered writes, leaves temp files behind, and closes connections uncleanly, and
 it makes the surrounding code untestable, because a test that reaches it kills the test
 binary.
 
@@ -117,14 +117,14 @@ func run() int {
 }
 ```
 
-Deferred cleanup in `run` still runs, because `run` returns normally — but anything
+Deferred cleanup in `run` still runs, because `run` returns normally, but anything
 deferred *above* `os.Exit` does not. Make pre-exit work idempotent (a `sync.Once`) so
 the normal paths can still defer it, and give it a **fresh, bounded** context, never one
 the failure itself already cancelled.
 
 ## Testing
 
-`Fatal` returns an `int` and nothing exits, so there is no seam to inject — see
+`Fatal` returns an `int` and nothing exits, so there is no seam to inject; see
 [testing](test-error-handling.md):
 
 ```go
@@ -137,7 +137,7 @@ assert.Equal(t, 3, code)
 ## What is not supported
 
 - **Overriding the code on an error that carries an outcome.** Attach a different
-  outcome instead — see above.
+  outcome instead (see above).
 - **Mapping a level to a code.** `Quietly()` changes how loudly a fatal report is
   logged, never what it returns.
 - **Carrying a code through a rebuilt error.** Anything that reconstructs an error from

@@ -5,7 +5,7 @@ When your tool fails in someone else's hands, the most useful thing you can add 
 
 ## Implement the interface
 
-The module ships the interface and **no implementations** — it has no opinion about
+The module ships the interface and **no implementations**, because it has no opinion about
 where your team's support channel lives:
 
 ```go
@@ -24,7 +24,7 @@ type slackHelp struct {
 
 func (s slackHelp) SupportMessage() string {
 	if s.Team == "" || s.Channel == "" {
-		return "" // not configured — stay silent
+		return "" // not configured: stay silent
 	}
 
 	return fmt.Sprintf("For assistance, contact %s via Slack channel %s", s.Team, s.Channel)
@@ -40,13 +40,13 @@ handler := errorhandling.New(logger, slackHelp{Team: "Platform", Channel: "#supp
 Every reported error now carries a `help` field:
 
 ```
-level=ERROR msg="deploy failed" hints="Check your cluster credentials" help="For assistance, contact Platform via Slack channel #support"
+level=ERROR msg="deploy failed" err.msg="deploy failed" err.kind=errors.basic err.hint="[Check your cluster credentials]" help="For assistance, contact Platform via Slack channel #support"
 ```
 
 ## Returning an empty string suppresses it
 
 An implementation that returns `""` adds nothing to the output. That is the designed
-way to stay quiet when a channel isn't configured yet — no `nil` juggling and no
+way to stay quiet when a channel isn't configured yet, with no `nil` juggling and no
 half-rendered "contact  via " messages.
 
 Passing `nil` for the whole `HelpConfig` disables help output entirely:
@@ -57,7 +57,7 @@ handler := errorhandling.New(logger, nil)
 
 ## Anything can be a help channel
 
-Because it's a one-method interface, the message can come from anywhere — a wiki URL,
+Because it's a one-method interface, the message can come from anywhere: a wiki URL,
 an on-call rota looked up at startup, a value read from configuration:
 
 ```go
@@ -75,23 +75,19 @@ do I/O. Resolve the value once at startup and hold it. It is called on the repor
 goroutine with no context and no cancellation, so it must not block and must be safe to
 call concurrently.
 
-## Which reports do not get the help message
+## Which reports get the help message
 
-Not every report carries it. The message is attached on the ordinary path only, so it
-is absent from:
+All of them. The message is attached to every report at every level, including
+reports of this module's own sentinels, whatever the outcome says. The only ways to
+get no `help` field are a nil `HelpConfig` or a `SupportMessage` that returns `""`.
 
-- a **subcommand-required** warning, printed alongside usage
-- a **not-yet-implemented** notice
-- the first line of an [assertion failure](../reference/levels.md#what-an-assertion-failure-does),
-  though the ordinary line that follows does carry it
-
-The message also cannot vary by error — one `HelpConfig` serves the whole handler, and
+The message also cannot vary by error: one `HelpConfig` serves the whole handler, and
 `SupportMessage()` is called with no argument. If different failures need different
 channels, put the routing in a [hint](actionable-errors.md) instead.
 
 ## Why the module ships no implementations
 
-A Slack or Teams struct is an *opinion* — about which vendor you use, and about the
+A Slack or Teams struct is an *opinion* about which vendor you use and about the
 config shape that populates it. Baking either into the module would make every consumer
 carry someone else's choice. The interface is the extension point; the implementation
 is yours, exactly as it should be.

@@ -1,7 +1,7 @@
 # Print usage for a parent command
 
-A command that only groups subcommands — `mytool config`, with `get`/`set`/`list`
-beneath it — has nothing to do when invoked alone. The useful response is to show the
+A command that only groups subcommands (`mytool config`, with `get`/`set`/`list`
+beneath it) has nothing to do when invoked alone. The useful response is to show the
 user what they *could* have typed.
 
 There are two answers, and which one is right is a decision about your CLI:
@@ -32,7 +32,7 @@ You supply that through `SetUsage`:
 handler.SetUsage(cmd.Usage)   // Cobra: cmd.Usage is already func() error
 ```
 
-Any `func() error` works — a hand-rolled flag package, a template, or a plain
+Any `func() error` works: a hand-rolled flag package, a template, or a plain
 `fmt.Fprintln`.
 
 ## Set it per command, not once globally
@@ -51,7 +51,7 @@ PreRunE: func(cmd *cobra.Command, args []string) error {
 
 Do this and a failure in `mytool config` prints `config`'s usage, not the root
 command's. Set it once at the root instead and every parent command will print the
-root's usage — technically correct, practically useless.
+root's usage, which is technically correct and practically useless.
 
 ## Send usage to a specific writer
 
@@ -67,7 +67,7 @@ handler.SetUsage(func() error {
 
 ## When no printer is set
 
-`ErrRunSubCommand` is still handled — the "subcommand required" warning is logged and
+`ErrRunSubCommand` is still handled: the "subcommand required" warning is logged and
 the error is considered dealt with; there is simply no usage output. That makes the
 seam optional: a tool with no usage concept can ignore it entirely.
 
@@ -75,12 +75,12 @@ seam optional: a tool with no usage concept can ignore it entirely.
 
 The error your function returns is **discarded**. Nothing is logged about it and the
 report is emitted either way, so a printer that fails silently produces a report with no
-usage above it. If that matters — a printer writing to a pipe
-that has closed, say — handle the error inside the closure.
+usage above it. If that matters (a printer writing to a pipe
+that has closed, say), handle the error inside the closure.
 
 ## Decorating the sentinel works
 
-Wrap it, hint it, attach attributes — all of it reaches the report, because the sentinel
+Wrap it, hint it, attach attributes. All of it reaches the report, because the sentinel
 is an ordinary error carrying an [`Outcome`](../reference/api.md#outcome) rather than a
 special case the handler switches on:
 
@@ -93,7 +93,7 @@ errors.Wrapf(errorhandling.ErrUnknownSubCommand,
 
 The one thing you cannot change by attaching to it is the ending: the outcome fixes the
 level at warn and the code at `2`, and beats a code attached with `WithExitCode`. To end
-differently, attach your own outcome — see
+differently, attach your own outcome; see
 [Limitations](../reference/limitations.md#a-usage-outcomes-exit-code-cannot-be-chosen).
 
 ## Reporting a mistyped subcommand
