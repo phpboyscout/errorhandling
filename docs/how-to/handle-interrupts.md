@@ -1,6 +1,6 @@
 # Handle interrupts quietly
 
-A user pressing <kbd>Ctrl</kbd>+<kbd>C</kbd> has not encountered a failure — they have
+A user pressing <kbd>Ctrl</kbd>+<kbd>C</kbd> has not encountered a failure. They have
 made a decision. Reporting that as `ERROR interrupted by signal` is noise: it looks
 like your tool broke when it did exactly what it was told.
 
@@ -21,12 +21,12 @@ err := errorhandling.WithExitCode(
 os.Exit(handler.Fatal(ctx, err, errorhandling.Quietly()))
 ```
 
-The process exits `130` for SIGINT (`128+2`) or `143` for SIGTERM (`128+15`) — the
-convention shells and supervisors understand — while the notice stays out of the user's
+The process exits `130` for SIGINT (`128+2`) or `143` for SIGTERM (`128+15`), the
+convention shells and supervisors understand, while the notice stays out of the user's
 face. It is still there under debug, so anyone diagnosing a run sees it.
 
 The general rule: reach for `Quietly()` whenever a termination is **expected and
-user-initiated**, and **the exit code is itself the signal** — an error line would add
+user-initiated**, and **the exit code is itself the signal**, so an error line would add
 nothing.
 
 Note it is read on the `Fatal` path only: `Error(ctx, err, Quietly())` still logs at
@@ -36,7 +36,7 @@ so if you want a quiet interrupt, do not also give it an outcome that says other
 ## Wiring a signal watcher
 
 The module handles *reporting*; catching signals is your program's job. A pattern worth
-copying, learned the hard way:
+copying:
 
 ```go
 sigs := make(chan os.Signal, 2) // buffered for BOTH the graceful and force signals
@@ -48,7 +48,7 @@ defer cancel()
 
 go func() {
 	sig := <-sigs
-	slog.Default().Warn("interrupt received — press again to force quit")
+	slog.Default().Warn("interrupt received, press again to force quit")
 	cancel()           // first signal: graceful shutdown
 
 	<-sigs
@@ -58,7 +58,7 @@ go func() {
 
 Three details that matter:
 
-- **Buffer the channel to 2.** An unbuffered channel can drop the second signal — the
+- **Buffer the channel to 2.** An unbuffered channel can drop the second signal, the
   one the user sends *because* the first didn't work.
 - **A second signal must force-exit.** Otherwise a wedged cleanup traps them, and the
   only escape is `kill -9`.
@@ -72,14 +72,14 @@ observe a **second** signal (you need that for force-quit). `signal.Notify` plus
 
 ## The signal wins over the returned error
 
-When a run is interrupted, the command tree usually returns `context.Canceled` — an
+When a run is interrupted, the command tree usually returns `context.Canceled`, an
 artefact of the cancellation, not the reason the run ended. Prefer the signal:
 
 ```go
 err := runCommandTree(ctx)
 
 if sig := receivedSignal(); sig != nil {
-	flush()                                    // see below — before you exit
+	flush()                                    // see below: before you exit
 
 	return handler.Fatal(ctx, interruptErr(sig), errorhandling.Quietly())
 }
@@ -96,24 +96,24 @@ they stand.
 
 !!! danger "Flush before you exit, not in a defer"
     `Fatal` returns rather than exiting, so deferred cleanup in the *calling* frames does
-    still run — but only up to whatever frame calls `os.Exit` with the code it returned.
+    still run, but only up to whatever frame calls `os.Exit` with the code it returned.
     Anything deferred above that never runs. This is the classic way a telemetry flush
     silently stops happening the moment a real error occurs.
 
     Invoke pre-exit work **explicitly before** you exit, guarded by a `sync.Once` so the
-    normal paths can still `defer` it — and give it a **fresh, bounded context**, never
+    normal paths can still `defer` it, and give it a **fresh, bounded context**, never
     the one the interrupt just cancelled, or it aborts instantly.
 
 ## Interactive prompts and Ctrl-C
 
-If your tool renders a TUI prompt, the terminal is usually in **raw mode** — there,
+If your tool renders a TUI prompt, the terminal is usually in **raw mode**. There,
 <kbd>Ctrl</kbd>+<kbd>C</kbd> arrives as a *keystroke*, not a signal. The prompt aborts;
 your outer watcher never fires. That is the behaviour users expect: a stray Ctrl-C
 cancels the question, not the whole run.
 
 An **external** `kill -INT` is different: Go delivers it to every subscriber, so the
 prompt aborts *and* the run cancels with 130. That is the right semantic for
-supervisors — an external terminate should end the run, prompt or not.
+supervisors: an external terminate should end the run, prompt or not.
 
 ## Related
 

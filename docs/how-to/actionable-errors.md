@@ -5,24 +5,24 @@ places information can live, and how to choose between them.
 
 ## The rule for hints
 
-> A hint tells the user **what to do next** — not what the error was.
+> A hint tells the user **what to do next**, not what the error was.
 
 The message carries the error's *identity* (and is what `errors.Is` and your logs match
 on). The hint carries the *advice*. Keeping them apart is the whole point: advice
 embedded in a message makes the message long, unstable, and useless to match on.
 
 ```go
-// ✅ identity in the message, advice in the hint
+// good: identity in the message, advice in the hint
 return errors.WithHint(
 	errors.New("config file not found"),
 	"Run 'mytool init' to create one",
 )
 
-// ❌ advice welded into the identity
+// bad: advice welded into the identity
 return errors.New("config file not found\n\nSuggestions:\n  - run mytool init\n  - pass --config")
 ```
 
-Good hints name a **concrete next action** — a command to run, an environment variable
+Good hints name a **concrete next action**: a command to run, an environment variable
 to set, a setting to check:
 
 ```go
@@ -42,7 +42,7 @@ if err := sql.Open(driver, dsn); err != nil {
 
 if err := conn.Ping(); err != nil {
 	return errors.WithHint(errors.Wrap(err, "database connection test failed"),
-		"The connection was established but the database is not responding — check server health")
+		"The connection was established but the database is not responding; check server health")
 }
 ```
 
@@ -51,7 +51,7 @@ if err := conn.Ping(); err != nil {
 | Carrier | Audience | Shown |
 |---|---|---|
 | **Message** (`errors.New`, `errors.Wrap`) | matching code, operators | always |
-| **Hint** (`errors.WithHint`) | **the end user — how to fix it** | always, at every level |
+| **Hint** (`errors.WithHint`) | **the end user: how to fix it** | always, at every level |
 | **Detail** (`errors.WithDetail`) | developers diagnosing | always, at every level |
 | **Attribute** (`errors.WithAttrs`) | log queries and dashboards | always, as its own field |
 
@@ -59,24 +59,24 @@ Plus the **stack trace**, captured automatically and rendered only in debug.
 
 The split that matters is *audience*, not visibility: hints and details both reach the
 record. A detail is where a raw HTTP body or a driver-level code goes so it does not
-clutter the hint — **not** where a secret goes. Nothing here is redacted or debug-gated,
+clutter the hint, **not** where a secret goes. Nothing here is redacted or debug-gated,
 so anything that must not reach a user must not be attached to the error at all.
 
 ## Creating errors: the ladder
 
-1. `errors.New("static message")` — the default.
-2. `errors.Newf("invalid port: %d", port)` — when the message needs values.
-3. `errors.Wrap(err, "context")` — adding context as an error travels up.
-4. `errors.WithStack(err)` — re-returning a sentinel and you only want the stack.
-5. `errors.WithHint(err, "…")` — adding advice.
-6. `errors.NewSentinel(kind, msg)` — **at package scope**. Plain `New` there captures
+1. `errors.New("static message")`: the default.
+2. `errors.Newf("invalid port: %d", port)`: when the message needs values.
+3. `errors.Wrap(err, "context")`: adding context as an error travels up.
+4. `errors.WithStack(err)`: re-returning a sentinel and you only want the stack.
+5. `errors.WithHint(err, "…")`: adding advice.
+6. `errors.NewSentinel(kind, msg)`: **at package scope**. Plain `New` there captures
    its stack at initialisation, which points at `runtime.doInit` rather than anywhere
    the error was returned.
 
 !!! danger "Never `fmt.Errorf`"
     `fmt.Errorf` captures **no stack trace**, so a failure that reaches your logs has
-    no origin. Use `errors.Newf`/`errors.Wrap` from `go/errors` instead —
-    same ergonomics, plus a stack. (The handler tolerates plain errors; you just get
+    no origin. Use `errors.Newf`/`errors.Wrap` from `go/errors` instead.
+    The ergonomics are the same, plus a stack. (The handler tolerates plain errors; you just get
     no trace for them.)
 
 ## Prefer sentinels, wrap for specifics
@@ -97,7 +97,7 @@ func validatePort(port int) error {
 }
 ```
 
-Wrapping preserves identity — `errors.Is(err, ErrInvalidPort)` still matches — so
+Wrapping preserves identity (`errors.Is(err, ErrInvalidPort)` still matches), so
 callers can branch, and the boundary that *recognises* a condition is a natural place
 to attach the hint:
 
@@ -109,10 +109,10 @@ if errors.Is(err, ErrTokenExpired) {
 
 ## Message guidelines
 
-- **Be specific** — name the file path, URL, or config key involved.
-- **Be actionable** — if there's a fix, it goes in a hint.
-- **Be consistent** — same terminology across your tool.
-- **Wrap, don't replace** — add context as the error rises; never discard the cause.
+- **Be specific**: name the file path, URL, or config key involved.
+- **Be actionable**: if there's a fix, it goes in a hint.
+- **Be consistent**: same terminology across your tool.
+- **Wrap, don't replace**: add context as the error rises; never discard the cause.
 
 ## Flag a bug, not a user error
 
@@ -130,7 +130,7 @@ it is a bug. Don't add a hint: nobody outside your team can act on it, and a hin
 cannot be acted on trains people to ignore hints.
 
 What identifies it in the log is the kind, `errorhandling.assertion_failure`, inside the
-[`err` group](../reference/log-fields.md#err) — so a query can count them without
+[`err` group](../reference/log-fields.md#err), so a query can count them without
 matching on message text. It is otherwise reported like any other error, at whatever
 level you asked for.
 
@@ -139,4 +139,4 @@ level you asked for.
 - [The reporting model](../explanation/reporting-model.md)
 - [Why go/errors](../explanation/why-go-errors.md)
 - [Control the exit code](exit-codes.md)
-- [Log fields](../reference/log-fields.md) — which of these carriers renders where
+- [Log fields](../reference/log-fields.md): which of these carriers renders where

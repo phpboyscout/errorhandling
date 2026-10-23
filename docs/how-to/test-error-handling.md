@@ -16,8 +16,8 @@ code := h.Fatal(t.Context(), errorhandling.WithExitCode(errors.New("boom"), 3))
 assert.Equal(t, 3, code)
 ```
 
-The code an error *carries* and the code `Fatal` *returns* can differ — an
-[`Outcome`](../reference/api.md#outcome) overrides an attached code — so assert on the
+The code an error *carries* and the code `Fatal` *returns* can differ (an
+[`Outcome`](../reference/api.md#outcome) overrides an attached code), so assert on the
 return value when the question is "what would the process do".
 
 ## Assert on hints, not on rendered text
@@ -32,7 +32,7 @@ err := errors.WithHint(errors.New("token missing"),
 assert.Contains(t, errors.Hints(err), "Set the GITHUB_TOKEN environment variable")
 ```
 
-The same applies to exit codes — `errorhandling.ExitCode(err)` — and to identity:
+The same applies to exit codes (`errorhandling.ExitCode(err)`) and to identity:
 `errors.Is(err, ErrThing)` keeps working through wraps, hints, and exit codes.
 
 ## Capture the output when you must
@@ -47,7 +47,7 @@ h.Error(t.Context(), errors.New("something went wrong"))
 assert.Contains(t, buf.String(), "something went wrong")
 ```
 
-To exercise the debug-gated output — the stack trace — enable debug on the handler you
+To exercise the debug-gated output (the stack trace), enable debug on the handler you
 pass in:
 
 ```go
@@ -59,7 +59,7 @@ your handler considers debug is what governs.
 
 ## Mock the handler
 
-To assert that code under test *reported* something — without caring how it rendered —
+To assert that code under test *reported* something, without caring how it rendered,
 use the published mocks:
 
 ```go
@@ -76,7 +76,7 @@ func TestReportsFailure(t *testing.T) {
 ```
 
 `MockHelpConfig` is available for the same reason. Aliasing the import (`ehmocks` here)
-is the convention — the package is named `mocks`, so aliasing keeps it unambiguous
+is the convention: the package is named `mocks`, so aliasing keeps it unambiguous
 alongside other modules' mocks.
 
 ## Testing an error's own behaviour
