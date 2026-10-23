@@ -16,46 +16,45 @@ codes, debug-gated stacks, and an optional support-channel message.
 ## Why
 
 - **Two jobs, kept separate.** *Creating* an error (with context, hints, and a stack)
-  is `go/errors`' job. *Reporting* one — deciding the level, the exit code, and what the
-  user sees — is this package's. See
+  is `go/errors`' job. *Reporting* one (deciding the level, the exit code, and what the
+  user sees) is this package's. See
   [the reporting model](explanation/reporting-model.md).
 - **The error carries its exit code.** `WithExitCode(err, 3)` travels with the error
   through every wrap, so the code that knows *why* something failed decides how the
-  process exits — and every exit stays on one path instead of `os.Exit` calls
+  process exits, and every exit stays on one path instead of `os.Exit` calls
   scattered through the tree.
 - **Hints, not walls of text.** The message says what broke; the *hint* says what to
   do about it. Hints are surfaced as their own field, so the message stays short and
   the advice stays visible.
 - **The error carries how the program should end.** An `Outcome` states the exit code,
-  the level, and whether to print usage — so an error can be terminal *and* successful,
+  the level, and whether to print usage, so an error can be terminal *and* successful,
   which a closed switch over sentinels could never express.
 - **Quiet when it should be.** Stack traces appear only when debug logging is on. A user
-  pressing <kbd>Ctrl</kbd>+<kbd>C</kbd> is not a failure, so `Quietly()` reports at the
-  right code without shouting at them.
-- **Framework-free, and dependency-free.** `go/errors` is stdlib-only, so adding this
-  module adds this module. No CLI framework, no config system — a
-  `depfootprint_test.go` guard keeps it that way, and printing usage goes through a
-  caller-supplied seam.
+  pressing <kbd>Ctrl</kbd>+<kbd>C</kbd> is not a failure, so `Quietly()` logs the report
+  at debug and still returns the exit code.
+- **Framework-free.** `go/errors` is stdlib-only, so adding this module adds this
+  module. There is no CLI framework or config system; `depfootprint_test.go` fails if
+  one appears, and printing usage goes through a caller-supplied seam.
 
 ## Where next
 
 <div class="grid cards" markdown>
 
-- :material-rocket-launch: **[Getting started](tutorials/getting-started.md)** — report
+- :material-rocket-launch: **[Getting started](tutorials/getting-started.md)**: report
   your first error with a hint and an exit code.
-- :material-lightbulb-on-outline: **[Write actionable errors](how-to/actionable-errors.md)**
-  — what separates a good error from a bad one.
-- :material-exit-run: **[Control the exit code](how-to/exit-codes.md)** — attach a code
+- :material-lightbulb-on-outline: **[Write actionable errors](how-to/actionable-errors.md)**:
+  what separates a good error from a bad one.
+- :material-exit-run: **[Control the exit code](how-to/exit-codes.md)**: attach a code
   to the error value.
-- :material-keyboard-esc: **[Handle interrupts quietly](how-to/handle-interrupts.md)**
-  — Ctrl-C is a choice, not a crash.
-- :material-lifebuoy: **[Add a support channel](how-to/support-channel.md)** —
+- :material-keyboard-esc: **[Handle interrupts quietly](how-to/handle-interrupts.md)**:
+  Ctrl-C is a choice, not a crash.
+- :material-lifebuoy: **[Add a support channel](how-to/support-channel.md)**:
   implement `HelpConfig`.
-- :material-test-tube: **[Test error handling](how-to/test-error-handling.md)** —
+- :material-test-tube: **[Test error handling](how-to/test-error-handling.md)**:
   capture output, assert on the returned code, use the mock.
-- :material-book-open-variant: **[Reference](reference/index.md)** — every symbol,
+- :material-book-open-variant: **[Reference](reference/index.md)**: every symbol,
   level, exit code and log field, and what each does with bad input.
-- :material-block-helper: **[Limitations](reference/limitations.md)** — what the
+- :material-block-helper: **[Limitations](reference/limitations.md)**: what the
   package deliberately does not do.
 
 </div>
@@ -63,12 +62,12 @@ codes, debug-gated stacks, and an optional support-channel message.
 ## What this package does not do
 
 It reports errors. It does not exit, catch signals, recover panics, redact secrets,
-retry anything, or send a crash report — `Fatal` returns the code it thinks the process
+retry anything, or send a crash report. `Fatal` returns the code it thinks the process
 should use and leaves acting on it to `main`. Reports go to the `*slog.Logger` you
-supply and nowhere else — there is no writer, no colour control and no format control
-of its own.
+supply and nowhere else; there is no writer, colour control or format control of
+its own.
 
-Within reporting, the sharp edges worth knowing before you commit: an error carrying an
+Within reporting, the sharp edges worth knowing before you commit are these: an error carrying an
 outcome [overrides the level and code you asked for](reference/limitations.md#an-outcome-overrides-the-level-and-code-the-caller-asked-for),
 [`Quietly` is ignored by `Error` and `Warn`](reference/limitations.md#quietly-is-ignored-by-error-and-warn),
 and [details are not debug-gated](reference/limitations.md#details-are-not-debug-gated).
