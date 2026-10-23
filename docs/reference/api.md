@@ -24,7 +24,7 @@ Builds a [`StandardErrorHandler`](#standarderrorhandler) and returns it as an
   channel. It disables the [`help` field](log-fields.md#help) entirely.
 
 There is no exit function to inject. Nothing in this module terminates the process, so
-a fatal path is testable without a seam — assert on what [`Fatal`](#fatal) returns.
+a fatal path is testable without a seam. Assert on what [`Fatal`](#fatal) returns.
 
 ### StandardErrorHandler
 
@@ -59,7 +59,7 @@ type, so tests can substitute
 [the published mock](../how-to/test-error-handling.md#mock-the-handler).
 
 `Fatal` returns the exit code it believes the process should use. `Error` and `Warn`
-return nothing — they are not terminal, so there is no code to report.
+return nothing: they are not terminal, so there is no code to report.
 
 ## Reporting an error
 
@@ -71,7 +71,7 @@ Every report produces **exactly one** `slog` record. A nil error produces none.
 func (h *StandardErrorHandler) Fatal(ctx context.Context, err error, opts ...ReportOption) int
 ```
 
-Reports at `ERROR` and returns the [exit code](exit-codes.md). **It does not exit** —
+Reports at `ERROR` (`DEBUG` with [`Quietly`](#quietly); an [`Outcome`](#outcome)'s level beats both) and returns the [exit code](exit-codes.md). **It does not exit.**
 `main` owns termination, because a library calling `os.Exit` skips every deferred
 cleanup between itself and `main`.
 
@@ -85,9 +85,9 @@ nil check. A cancelled `ctx` does not suppress the report; the context is passed
 func (h *StandardErrorHandler) Error(ctx context.Context, err error, opts ...ReportOption)
 ```
 
-Reports at `ERROR` and returns. The caller keeps control and the process keeps running.
-Right for a failure worth telling someone about that does not end the run — one file in
-a batch, one retry that did not work.
+Reports at `ERROR`, or at the level of an [`Outcome`](#outcome) if the error carries one, and returns. The caller keeps control and the process keeps running.
+Right for a failure worth telling someone about that does not end the run, such as one file in
+a batch or one retry that did not work.
 
 ### Warn
 
@@ -95,7 +95,7 @@ a batch, one retry that did not work.
 func (h *StandardErrorHandler) Warn(ctx context.Context, err error, opts ...ReportOption)
 ```
 
-Reports at `WARN` and returns. For conditions that are not failures but are worth
+Reports at `WARN`, or at an outcome's level if the error carries one, and returns. For conditions that are not failures but are worth
 surfacing: a deprecated flag, a fallback that had to be taken.
 
 ### SetUsage
@@ -105,14 +105,14 @@ func (h *StandardErrorHandler) SetUsage(usage func() error)
 ```
 
 Registers the function that prints usage when a reported error carries an
-[`Outcome`](#outcome) with `Usage: true` — which is how
+[`Outcome`](#outcome) with `Usage: true`, which is how
 [`ErrRunSubCommand`](#errrunsubcommand) and
 [`ErrUnknownSubCommand`](#errunknownsubcommand) reach a printer. Keeping this a plain
 `func() error` is what lets the module stay free of any CLI-framework dependency; with
 Cobra, pass `cmd.Usage`.
 
 - The handler stores **one** function. The last call wins, which is why it belongs in a
-  per-command pre-run hook rather than being set once at the root — see
+  per-command pre-run hook rather than being set once at the root; see
   [Print usage for a parent command](../how-to/print-usage.md#set-it-per-command-not-once-globally).
 - **The error the usage function returns is discarded.** A printer that fails does so
   silently; the report is still logged.
@@ -154,7 +154,7 @@ func Quietly() ReportOption
 ```
 
 Demotes the log line to `DEBUG` without changing the exit code, for an expected,
-user-initiated end — an interrupt, say — where the non-zero code is the signal and an
+user-initiated end (an interrupt, say) where the non-zero code is the signal and an
 error line would be noise.
 
 **Read on the `Fatal` path only.** `Error(ctx, err, Quietly())` still logs at `ERROR`
@@ -168,7 +168,7 @@ func WithStackDepth(frames int) ReportOption
 ```
 
 Bounds how many frames of the [`stacktrace` field](log-fields.md#stacktrace) are
-rendered. The frames kept are the innermost — the failure and its immediate callers.
+rendered. The frames kept are the innermost: the failure and its immediate callers.
 
 A negative value removes the bound. This bounds **reporting**, not capture: `go/errors`
 captures more, and `errors.StackOf(err)` still reaches all of it.
@@ -200,7 +200,7 @@ How a terminal error should be presented and what exit code it deserves, declare
 the error rather than switched on by the handler.
 
 - **`Code`** is the process exit code. Zero is legitimate and meaningful: an outcome can
-  be terminal *and* successful — a completed self-update must stop the run, and nothing
+  be terminal *and* successful. A completed self-update must stop the run, and nothing
   went wrong.
 - **`Level`** is how loudly to report it. A user-initiated stop is not an error and an
   interrupt is not a failure, so neither should log like one.
@@ -217,7 +217,7 @@ func WithOutcome(err error, o Outcome) error
 ```
 
 Attaches an outcome to `err` without altering its message or identity. Returns `nil`
-when `err` is nil. Transparent to `errors.Is`/`As`, and it survives further wrapping —
+when `err` is nil. Transparent to `errors.Is`/`As`, and it survives further wrapping,
 which is what lets a caller wrap one of this module's sentinels with context and keep
 its ending.
 
@@ -240,7 +240,7 @@ const OutcomeKind = "errorhandling.outcome"
 Identifies an attached outcome to anything reading the wrapper directly.
 
 It does **not** appear in [`errors.KindOf`](https://errors.go.phpboyscout.uk/reference/readers/#kindof).
-The wrapper declares itself structural — an annotation rather than an identity —
+The wrapper declares itself structural (an annotation rather than an identity),
 so `KindOf` looks past it:
 
 ```go
@@ -249,7 +249,7 @@ errors.KindOf(WithExitCode(ErrNotFound, 3))           // the sentinel's own kind
 ```
 
 Before v0.5.0 it reported `errorhandling.outcome` for all three sentinels this
-module ships — the plumbing, on exactly the errors most likely to be queried.
+module ships: the plumbing, on exactly the errors most likely to be queried.
 
 ## Exit codes
 
@@ -260,7 +260,7 @@ func WithExitCode(err error, code int) error
 ```
 
 Attaches a process exit code to `err` without altering its message or identity. Returns
-`nil` for a nil `err` — attaching a code to "no error" cannot invent a failure.
+`nil` for a nil `err`, because attaching a code to "no error" cannot invent a failure.
 
 The wrapper is transparent to `errors.Is` and `errors.As`, and survives further
 wrapping. `code` is not validated: any `int` is accepted, including values outside the
@@ -284,7 +284,7 @@ Reads the attached code back.
 | A code attached more than once | the **outermost**, matching `errors.As` order |
 
 It traverses joined errors as well as wraps. It knows nothing about outcomes, so it and
-[`Fatal`](#fatal) can legitimately disagree — see
+[`Fatal`](#fatal) can legitimately disagree; see
 [Exit codes](exit-codes.md#reading-a-code-back-in-a-test).
 
 ### ExitCodeUsage
@@ -328,7 +328,7 @@ func NewErrNotImplemented(issueURL string) error
 ```
 
 `ErrNotImplemented` with a stack captured at the call site, plus `issueURL` as an
-`issue_url` attribute — which arrives inside the [`err` group](log-fields.md#err) of the
+`issue_url` attribute, which arrives inside the [`err` group](log-fields.md#err) of the
 same record, not on a line of its own.
 
 - **The result *is* `errors.Is(err, ErrNotImplemented)`**, so code matching on the
@@ -353,7 +353,7 @@ Returning it is a choice, not a rule. A parent that only groups its children can
 treat a bare invocation as a request for help and succeed; reach for this when the
 command genuinely cannot act on its own.
 
-Detection is `errors.Is`, and a wrap's own message **is** reported —
+Detection is `errors.Is`, and a wrap's own message **is** reported:
 `errors.Wrap(ErrRunSubCommand, "config")` logs `config: subcommand required`. The
 outcome travels through the wrap with it.
 
@@ -397,8 +397,8 @@ errorhandling.UnknownSubCommand("bogus", "tool alpha")
 ```
 
 It exists so the wording and the sentinel do not drift between CLIs. The cobra
-glue that calls it deliberately lives elsewhere — this module imports no CLI
-framework, and a module holding eight lines of glue would not earn its keep — so
+glue that calls it deliberately lives elsewhere. This module imports no CLI
+framework, and a module holding eight lines of glue would not earn its keep, so
 what is shared is the message and the identity, not the closure:
 
 ```go
@@ -418,7 +418,7 @@ var ErrAssertionFailure = errors.NewSentinel(
 	"errorhandling.assertion_failure", "internal invariant violated")
 ```
 
-A violated internal invariant — a bug in the program rather than a mistake by its user.
+A violated internal invariant: a bug in the program rather than a mistake by its user.
 
 It carries **no** outcome, so it does not override the reporting level and `Fatal`
 returns `1` unless a code is attached. What identifies it is the kind on the record,
@@ -444,12 +444,12 @@ type HelpConfig interface {
 ```
 
 The extension point for a support-channel message. The module ships the interface and no
-implementations, deliberately — see
+implementations, deliberately; see
 [Add a support channel](../how-to/support-channel.md#why-the-module-ships-no-implementations).
 
 - `SupportMessage` is called **on every report**, so it must be cheap. Resolve the
   message once at startup and return the stored value.
-- Returning `""` suppresses the [`help` field](log-fields.md#help) — that is the
+- Returning `""` suppresses the [`help` field](log-fields.md#help). That is the
   designed way to stay silent when a channel is not configured.
 - Passing `nil` for the whole interface disables help output without any nil handling on
   your side.
