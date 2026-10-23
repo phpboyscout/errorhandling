@@ -21,7 +21,7 @@ logging, so a fatal path guarded by a nil check needs no second guard.
 ### Quietly only applies to Fatal
 
 [`Quietly`](api.md#quietly) demotes the line to `DEBUG` without changing the exit code.
-It is read on the fatal path only — `Error(ctx, err, Quietly())` still logs at `ERROR`,
+It is read on the fatal path only: `Error(ctx, err, Quietly())` still logs at `ERROR`,
 silently ignoring the option.
 
 That is deliberate rather than an oversight: the option exists for a termination whose
@@ -40,7 +40,7 @@ h.Fatal(ctx, errorhandling.ErrRunSubCommand, errorhandling.Quietly())
 ```
 
 The error knows what kind of ending it is; the reporting site usually does not. A caller
-that needs a different level has to replace the outcome, not argue with it — see
+that needs a different level has to replace the outcome, not argue with it; see
 [Limitations](limitations.md#an-outcome-overrides-the-level-and-code-the-caller-asked-for).
 
 ## What the sentinels do
@@ -79,12 +79,12 @@ h.Warn(ctx, errorhandling.NewAssertionFailure("bad: %s", "x<0"))
 ```
 
 It carries no outcome, so it does not override the level and `Fatal` returns `1` unless a
-code is attached. The kind is what a query filters on — which is why the second,
+code is attached. The kind is what a query filters on, which is why the second,
 fixed `ERROR Internal error (assertion failure)` line earlier versions emitted was
 dropped: it said in prose what the record already says in a field.
 
 ## Related
 
-- [Exit codes](exit-codes.md) — which code `Fatal` returns
-- [Log fields](log-fields.md) — what appears alongside the message
-- [The reporting model](../explanation/reporting-model.md) — why the split is drawn here
+- [Exit codes](exit-codes.md): which code `Fatal` returns
+- [Log fields](log-fields.md): what appears alongside the message
+- [The reporting model](../explanation/reporting-model.md): why the split is drawn here

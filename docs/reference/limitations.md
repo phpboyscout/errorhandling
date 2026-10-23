@@ -9,8 +9,8 @@ An error carrying an [`Outcome`](api.md#outcome) decides its own log level and e
 code, whatever the reporting call said. `Error(ctx, ErrRunSubCommand)` logs at `WARN`,
 and a code attached with [`WithExitCode`](api.md#withexitcode) loses to the outcome's.
 
-That is the point of an outcome rather than a defect — the error knows what kind of
-ending it is and the reporting site usually does not — but it does mean a caller cannot
+That is the point of an outcome rather than a defect (the error knows what kind of
+ending it is and the reporting site usually does not), but it does mean a caller cannot
 promote one of these to an error-level report without replacing the outcome.
 
 ## Quietly is ignored by Error and Warn
@@ -26,7 +26,7 @@ has no code to carry the meaning instead.
 
 The three sentinels this module ships carry [`ExitCodeUsage`](exit-codes.md#exitcodeusage).
 There is no option to change the constant, and no way to opt a particular sentinel out
-of it. Attaching a different code to one of them does nothing — the outcome wins.
+of it. Attaching a different code to one of them does nothing, because the outcome wins.
 
 What you *can* do is build your own error with a different outcome:
 `WithOutcome(err, Outcome{Code: 64, ...})`.
@@ -34,7 +34,7 @@ What you *can* do is build your own error with a different outcome:
 ## Details are not debug-gated
 
 Hints and details both appear in the [`err` group](log-fields.md#err) at every level,
-debug or not. Details are a *category* of information, not a privacy boundary — if
+debug or not. Details are a *category* of information, not a privacy boundary. If
 something must not reach an ordinary user, it must not be attached to the error.
 
 ## Nothing is redacted
@@ -45,7 +45,7 @@ a credential, a token or personal data to an error and expect the report to hide
 ## Exit codes do not survive a rebuilt error
 
 The exit-code wrapper is an unexported type. `errors.Is`, `errors.As` and `errors.Join`
-all see through it, and [`ExitCode`](api.md#exitcode) finds a code through a join — but
+all see through it, and [`ExitCode`](api.md#exitcode) finds a code through a join, but
 anything that reconstructs an error from `err.Error()`, such as an RPC boundary carrying
 only strings, drops it along with the hints and the stack.
 
@@ -86,9 +86,9 @@ usage; the fix is to set it in each command's pre-run, which is the caller's job
 
 ## The handler is not concurrency-safe to reconfigure
 
-`SetUsage` writes a struct field with no lock, and every report reads `Logger`, `Help`,
-`Exit` and `Usage` unguarded. Reporting from several goroutines is fine. Calling
-`SetUsage` while another goroutine reports is a data race — the race detector will say
+`SetUsage` writes a struct field with no lock, and every report reads `Logger`, `Help` and
+`Usage` unguarded. Reporting from several goroutines is fine. Calling
+`SetUsage` while another goroutine reports is a data race, and the race detector will say
 so. Configure the handler before you start concurrent work.
 
 ## Nil is not defended against
@@ -107,7 +107,7 @@ test, so that is not going to change quietly.
 
 ## Related
 
-- [Report levels](levels.md) — the behaviour these limits qualify
-- [Exit codes](exit-codes.md) — the resolution order
-- [Why go/errors](../explanation/why-go-errors.md) — what the foundation does and does
+- [Report levels](levels.md): the behaviour these limits qualify
+- [Exit codes](exit-codes.md): the resolution order
+- [Why go/errors](../explanation/why-go-errors.md): what the foundation does and does
   not buy
