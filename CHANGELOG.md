@@ -1,5 +1,17 @@
 # Changelog
 
+## [v0.5.2](https://gitlab.com/phpboyscout/go/errorhandling/-/releases/v0.5.2)
+
+[Compare to previous version](https://gitlab.com/phpboyscout/go/errorhandling/-/compare/v0.5.1...v0.5.2)
+
+### Notes
+
+- Releases are announced to the estate's release feed.
+
+### Bug Fixes
+
+- **deps**: update phpboyscout modules ([a59bdca](https://gitlab.com/phpboyscout/go/errorhandling/-/commit/a59bdcac2b73f105c56805bce784307ce238fd92))
+
 ## [v0.5.1](https://gitlab.com/phpboyscout/go/errorhandling/-/releases/v0.5.1)
 
 [Compare to previous version](https://gitlab.com/phpboyscout/go/errorhandling/-/compare/v0.5.0...v0.5.1)
