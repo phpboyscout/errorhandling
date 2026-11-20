@@ -1,5 +1,13 @@
 # Changelog
 
+## [v0.5.3](https://gitlab.com/phpboyscout/go/errorhandling/-/releases/v0.5.3)
+
+[Compare to previous version](https://gitlab.com/phpboyscout/go/errorhandling/-/compare/v0.5.2...v0.5.3)
+
+### Bug Fixes
+
+- **deps**: update module gitlab.com/phpboyscout/go/errors to v0.4.1 ([65dd50f](https://gitlab.com/phpboyscout/go/errorhandling/-/commit/65dd50fb343d2a25ef7fdb13896417dff10c9765))
+
 ## [v0.5.2](https://gitlab.com/phpboyscout/go/errorhandling/-/releases/v0.5.2)
 
 [Compare to previous version](https://gitlab.com/phpboyscout/go/errorhandling/-/compare/v0.5.1...v0.5.2)
